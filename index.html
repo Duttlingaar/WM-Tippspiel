@@ -36,6 +36,7 @@ const {useState,useEffect,useRef,useMemo}=React;
 
 const SB_URL='https://apciipwcgoqiseutgwtw.supabase.co';
 const SB_KEY='eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImFwY2lpcHdjZ29xaXNldXRnd3R3Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODAxNzk2MzYsImV4cCI6MjA5NTc1NTYzNn0.Cg7tlVL_7BJLmuWRLzI9SHTGqOcqiJyDzwpSfnBWKy4';
+const FD_KEY='94561dee953d4d31af606542ad56ea79';
 const EMPTY_TIPS={groupTips:{},koScores:{}};
 
 // ── Lock: 11 Jun 2026 19:00 UTC = 21:00 MESZ ──
@@ -141,7 +142,7 @@ const GRP={
 };
 const PAIRS=[[0,1],[2,3],[0,2],[1,3],[0,3],[1,2]];
 const MDS=[1,1,2,2,3,3];
-const A2D={"Mexico":"Mexiko","South Korea":"Südkorea","South Africa":"Südafrika","Czech Republic":"Tschechien","Czechia":"Tschechien","Canada":"Kanada","Switzerland":"Schweiz","Qatar":"Katar","Bosnia":"Bosnien","Bosnia and Herzegovina":"Bosnien","Brazil":"Brasilien","Morocco":"Marokko","Scotland":"Schottland","Haiti":"Haiti","USA":"USA","United States":"USA","Paraguay":"Paraguay","Australia":"Australien","Turkey":"Türkei","Germany":"Deutschland","Curacao":"Curaçao","Ivory Coast":"Elfenbeinküste","Cote d'Ivoire":"Elfenbeinküste","Ecuador":"Ecuador","Netherlands":"Niederlande","Japan":"Japan","Sweden":"Schweden","Tunisia":"Tunesien","Belgium":"Belgien","Egypt":"Ägypten","Iran":"Iran","New Zealand":"Neuseeland","Spain":"Spanien","Uruguay":"Uruguay","Saudi Arabia":"Saudi-Arabien","Cape Verde":"Kap Verde","France":"Frankreich","Norway":"Norwegen","Senegal":"Senegal","Iraq":"Irak","Argentina":"Argentinien","Austria":"Österreich","Algeria":"Algerien","Jordan":"Jordanien","Portugal":"Portugal","Uzbekistan":"Usbekistan","Colombia":"Kolumbien","DR Congo":"DR Kongo","Democratic Republic of Congo":"DR Kongo","England":"England","Croatia":"Kroatien","Ghana":"Ghana","Panama":"Panama"};
+const A2D={"Mexico":"Mexiko","South Korea":"Südkorea","Korea Republic":"Südkorea","South Africa":"Südafrika","Czech Republic":"Tschechien","Czechia":"Tschechien","Canada":"Kanada","Switzerland":"Schweiz","Qatar":"Katar","Bosnia":"Bosnien","Bosnia and Herzegovina":"Bosnien","Brazil":"Brasilien","Morocco":"Marokko","Scotland":"Schottland","Haiti":"Haiti","USA":"USA","United States":"USA","United States of America":"USA","Paraguay":"Paraguay","Australia":"Australien","Turkey":"Türkei","Türkiye":"Türkei","Germany":"Deutschland","Curacao":"Curaçao","Curaçao":"Curaçao","Ivory Coast":"Elfenbeinküste","Cote d'Ivoire":"Elfenbeinküste","Côte d'Ivoire":"Elfenbeinküste","Côte d’Ivoire":"Elfenbeinküste","Ecuador":"Ecuador","Netherlands":"Niederlande","Japan":"Japan","Sweden":"Schweden","Tunisia":"Tunesien","Belgium":"Belgien","Egypt":"Ägypten","Iran":"Iran","New Zealand":"Neuseeland","Spain":"Spanien","Uruguay":"Uruguay","Saudi Arabia":"Saudi-Arabien","Cape Verde":"Kap Verde","Cabo Verde":"Kap Verde","France":"Frankreich","Norway":"Norwegen","Senegal":"Senegal","Iraq":"Irak","Argentina":"Argentinien","Austria":"Österreich","Algeria":"Algerien","Jordan":"Jordanien","Portugal":"Portugal","Uzbekistan":"Usbekistan","Colombia":"Kolumbien","DR Congo":"DR Kongo","Congo DR":"DR Kongo","Democratic Republic of Congo":"DR Kongo","England":"England","Croatia":"Kroatien","Ghana":"Ghana","Panama":"Panama"};
 
 const KO=[
   {id:"M73",r:"R32",t1:"A2",t2:"B2",d:"28.06",t:"21:00",lbl:"2A vs 2B"},
@@ -233,6 +234,17 @@ function qualifiers(gTips={}){
   return q;
 }
 const rt=(src,q,kw)=>!src?'?':src.startsWith('W:')?kw?.[src.slice(2)]||'?':q?.[src]||'?';
+function koWinners(koScores={},q={}){
+  const w={};
+  KO.forEach(m=>{
+    const s=koScores?.[m.id];
+    const t1=rt(m.t1,q,w),t2=rt(m.t2,q,w);
+    const done=s&&s.h!=null&&s.h!==''&&s.a!=null&&s.a!==''&&!isNaN(+s.h)&&!isNaN(+s.a)&&+s.h!==+s.a;
+    const winner=done?(+s.h>+s.a?t1:t2):null;
+    if(winner&&winner!=='?')w[m.id]=winner;
+  });
+  return w;
+}
 function mpts(tip,real){
   if(!tip||!real||tip.h==null||tip.h===''||tip.a==null||tip.a==='')return 0;
   if(real.h==null||real.a==null)return 0;
@@ -244,10 +256,11 @@ function mpts(tip,real){
 function score(ut,rGR,rKR,rKS){
   let p=0;const bd={g:0,k:0,s:0,b:0};
   const rQ=qualifiers(rGR||{}),uQ=qualifiers(ut.groupTips||{});
+  const uKW=koWinners(ut.koScores||{},uQ);
   Object.keys(GRP).forEach(g=>gms(g).forEach(({id})=>{const x=mpts(ut.groupTips?.[g]?.[id],rGR?.[g]?.[id]);p+=x;bd.g+=x}));
   KO.forEach(m=>{
     const uS=ut.koScores?.[m.id],rW=rKR?.[m.id];
-    const uT1=rt(m.t1,uQ,{}),uT2=rt(m.t2,uQ,{});
+    const uT1=rt(m.t1,uQ,uKW),uT2=rt(m.t2,uQ,uKW);
     const uW=uS&&uS.h!=null&&uS.a!=null&&+uS.h!==+uS.a?(+uS.h>+uS.a?uT1:uT2):null;
     if(uW&&rW&&uW===rW){
       p+=RP[m.r];bd.k+=RP[m.r];
@@ -261,28 +274,27 @@ function score(ut,rGR,rKR,rKS){
 
 // ── API ──
 async function syncAPI(key){
-  const r=await fetch('https://v3.football.api-sports.io/fixtures?league=1&season=2026',{headers:{'x-apisports-key':key}});
+  const r=await fetch('https://api.football-data.org/v4/competitions/WC/matches?season=2026',{headers:{'X-Auth-Token':key}});
   if(!r.ok)throw new Error('HTTP '+r.status);
   const d=await r.json();
-  if(d.errors&&Object.keys(d.errors).length)throw new Error(Object.values(d.errors)[0]);
-  const fx=d.response||[],rG={},rK={},rS={};
+  if(d.error||d.message&&d.message!=='')throw new Error(d.message||d.error);
+  const fx=d.matches||[],rG={},rK={},rS={};
+  const fdName=n=>A2D[n]||n;
   fx.forEach(f=>{
-    const st=f.fixture?.status?.short;
-    if(!['FT','AET','PEN'].includes(st))return;
-    const rnd=f.league?.round||'';
-    const hD=A2D[f.teams?.home?.name],aD=A2D[f.teams?.away?.name];
-    const gH=f.goals?.home,gA=f.goals?.away;
-    const wD=f.teams?.home?.winner?hD:f.teams?.away?.winner?aD:null;
+    if(f.status!=='FINISHED')return;
+    const hD=fdName(f.homeTeam?.name),aD=fdName(f.awayTeam?.name);
+    const gH=f.score?.fullTime?.home,gA=f.score?.fullTime?.away;
+    const rH=f.score?.regularTime?.home??gH,rA=f.score?.regularTime?.away??gA;
+    const wD=f.score?.winner==='HOME_TEAM'?hD:f.score?.winner==='AWAY_TEAM'?aD:null;
     if(!hD||!aD)return;
-    if(rnd.startsWith('Group Stage')){
-      Object.keys(GRP).forEach(g=>gms(g).forEach(m=>{
-        if(m.home===hD&&m.away===aD){if(!rG[g])rG[g]={};rG[g][m.id]={h:gH,a:gA}}
-        else if(m.home===aD&&m.away===hD){if(!rG[g])rG[g]={};rG[g][m.id]={h:gA,a:gH}}
-      }));
-    }else if(wD){
+    let isGroup=false;
+    Object.keys(GRP).forEach(g=>gms(g).forEach(m=>{
+      if(m.home===hD&&m.away===aD){if(!rG[g])rG[g]={};rG[g][m.id]={h:gH,a:gA};isGroup=true}
+      else if(m.home===aD&&m.away===hD){if(!rG[g])rG[g]={};rG[g][m.id]={h:gA,a:gH};isGroup=true}
+    }));
+    if(!isGroup&&wD){
       rK[hD+'__'+aD]=wD;rK[aD+'__'+hD]=wD;
-      const fH=f.score?.fulltime?.home??gH,fA=f.score?.fulltime?.away??gA;
-      rS[hD+'__'+aD]={h:fH,a:fA};rS[aD+'__'+hD]={h:fA,a:fH};
+      rS[hD+'__'+aD]={h:rH,a:rA};rS[aD+'__'+hD]={h:rA,a:rH};
     }
   });
   const rQ=qualifiers(rG),ko={},ks={};
@@ -487,6 +499,7 @@ const GroupsTab=({group,setGroup,tips,updateTip,gtCount,realGR,locked})=>{
 // ── KO Tab ──
 const KOTab=({koRound,setKoRound,koScores,q,updateKoScore,koScoreCount,rKR,rKS,locked})=>{
   const ms=KO.filter(m=>m.r===koRound);
+  const kw=koWinners(koScores,q);
   return <div>
     {locked&&<LockBar/>}
     <div style={{background:T.card,borderRadius:10,padding:'12px 14px',marginBottom:12,border:'1px solid '+T.border,display:'flex',justifyContent:'space-between',alignItems:'center'}}>
@@ -506,7 +519,7 @@ const KOTab=({koRound,setKoRound,koScores,q,updateKoScore,koScoreCount,rKR,rKS,l
     </div>}
     <div style={{display:'grid',gap:10}}>
       {ms.map(m=>{
-        const t1=rt(m.t1,q,{}),t2=rt(m.t2,q,{});
+        const t1=rt(m.t1,q,kw),t2=rt(m.t2,q,kw);
         const sc=koScores?.[m.id]||{},rW=rKR?.[m.id],rSc=rKS?.[m.id];
         const ok1=t1&&t1!=='?',ok2=t2&&t2!=='?';
         const h=sc.h!=null&&sc.h!==''?+sc.h:null,a=sc.a!=null&&sc.a!==''?+sc.a:null;
@@ -669,6 +682,59 @@ const AllMatchTips=({allUsers,allTips,rGR})=>{
   </div>;
 };
 
+const AllKOTips=({allUsers,allTips,rGR,rKR,rKS})=>{
+  const [round,setRound]=useState('R32');
+  const rQ=qualifiers(rGR||{}),realKW=rKR||{};
+  const pairOk=(a,b,c,d)=>a&&b&&c&&d&&a!=='?'&&b!=='?'&&c!=='?'&&d!=='?'&&((a===c&&b===d)||(a===d&&b===c));
+  const scoreDone=s=>s&&s.h!=null&&s.h!==''&&s.a!=null&&s.a!=='';
+  return <div style={{marginTop:26}}>
+    <div style={{marginBottom:10}}>
+      <div style={{color:T.goldText,fontWeight:900,fontSize:15,letterSpacing:1}}>K.O.-Tipps aller</div>
+      <div style={{color:T.textMuted,fontSize:11,marginTop:2}}>Grün = richtige Begegnung vorhergesagt.</div>
+    </div>
+    <div style={{display:'flex',gap:5,marginBottom:12,flexWrap:'wrap'}}>
+      {KOR.map(r=><button key={r.id} onClick={()=>setRound(r.id)} style={{flex:'none',padding:'7px 11px',borderRadius:20,
+        border:'1px solid '+(round===r.id?T.goldText:T.border),background:round===r.id?T.goldDim:T.surface,
+        color:round===r.id?T.goldText:T.textDim,fontWeight:700,fontSize:11,cursor:'pointer'}}>{r.lbl}</button>)}
+    </div>
+    {KO.filter(m=>m.r===round).map(m=>{
+      const realT1=rt(m.t1,rQ,realKW),realT2=rt(m.t2,rQ,realKW),realSc=rKS?.[m.id]||null;
+      const hasRealPair=realT1!=='?'&&realT2!=='?';
+      return <div key={m.id} style={{background:T.card,border:'1px solid '+T.border,borderRadius:12,marginBottom:8,overflow:'hidden'}}>
+        <div style={{padding:'10px 12px',borderBottom:'1px solid '+T.border}}>
+          <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',gap:8,marginBottom:7}}>
+            <DateBadge d={m.d} t={m.t+' MESZ'}/>
+            {realSc&&<span style={{fontSize:10,color:T.textDim}}>90' <b style={{color:T.text}}>{realSc.h}:{realSc.a}</b></span>}
+          </div>
+          <div style={{display:'flex',alignItems:'center',gap:8}}>
+            <span style={{flex:1,textAlign:'right',fontSize:12,fontWeight:800,color:hasRealPair?T.text:T.textMuted,display:'flex',justifyContent:'flex-end',alignItems:'center',gap:5}}>{hasRealPair&&<Flag c={realT1} s={15}/>} {hasRealPair?realT1:m.lbl}</span>
+            <span style={{color:T.textMuted,fontWeight:800,fontSize:12}}>vs</span>
+            <span style={{flex:1,fontSize:12,fontWeight:800,color:hasRealPair?T.text:T.textMuted,display:'flex',alignItems:'center',gap:5}}>{hasRealPair?realT2:'offen'} {hasRealPair&&<Flag c={realT2} s={15}/>}</span>
+          </div>
+        </div>
+        <div style={{padding:'8px 10px'}}>
+          {allUsers.map(u=>{
+            const t=allTips?.[u]||EMPTY_TIPS,q=qualifiers(t.groupTips||{}),kw=koWinners(t.koScores||{},q);
+            const tipT1=rt(m.t1,q,kw),tipT2=rt(m.t2,q,kw),s=t.koScores?.[m.id]||{};
+            const pairing=pairOk(tipT1,tipT2,realT1,realT2),done=scoreDone(s),pts=realSc&&done?mpts(s,realSc):null;
+            return <div key={u} style={{padding:'8px 9px',marginBottom:5,borderRadius:9,
+              border:'1px solid '+(pairing?'rgba(46,204,113,.45)':T.border),background:pairing?T.greenDim:T.surface}}>
+              <div style={{display:'flex',alignItems:'center',gap:8}}>
+                <span style={{flex:1,minWidth:0,fontSize:12,fontWeight:800,color:pairing?T.green:T.text,overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}}>{u}</span>
+                <span style={{fontSize:13,fontWeight:900,color:done?pairing?T.green:T.goldText:T.textMuted}}>{done?s.h+':'+s.a:'–:–'}</span>
+                {pts!==null&&<span style={{fontSize:10,fontWeight:800,color:pts===3?T.green:pts===1?T.amber:T.red,width:32,textAlign:'right'}}>{pts}p</span>}
+              </div>
+              <div style={{marginTop:5,fontSize:11,color:pairing?T.green:T.textDim,display:'flex',alignItems:'center',gap:5,flexWrap:'wrap'}}>
+                {tipT1!=='?'&&<Flag c={tipT1} s={13}/>}<span>{tipT1}</span><span>vs</span><span>{tipT2}</span>{tipT2!=='?'&&<Flag c={tipT2} s={13}/>}
+              </div>
+            </div>;
+          })}
+        </div>
+      </div>;
+    })}
+  </div>;
+};
+
 // ── Others Tab ──
 const OthersTab=({allUsers,allTips,viewUser,viewTips,onSelect,rGR,rKR,rKS})=>{
   const [vGrp,setVGrp]=useState('A');
@@ -681,6 +747,7 @@ const OthersTab=({allUsers,allTips,viewUser,viewTips,onSelect,rGR,rKR,rKS})=>{
       <span style={{color:T.textMuted,fontSize:16}}>›</span>
     </button>)}
     <AllMatchTips allUsers={allUsers} allTips={allTips} rGR={rGR}/>
+    <AllKOTips allUsers={allUsers} allTips={allTips} rGR={rGR} rKR={rKR} rKS={rKS}/>
   </div>;
   if(!viewTips)return <div style={{textAlign:'center',color:T.textMuted,padding:'60px 16px',fontSize:20}}>⏳</div>;
   const vSt=standings(vGrp,viewTips.groupTips?.[vGrp]||{});
@@ -688,6 +755,7 @@ const OthersTab=({allUsers,allTips,viewUser,viewTips,onSelect,rGR,rKR,rKS})=>{
   const rG=rGR?.[vGrp]||{},hasR=Object.keys(rGR||{}).length>0;
   const vSc=score(viewTips,rGR,rKR,rKS);
   const vQ=qualifiers(viewTips.groupTips||{});
+  const vKW=koWinners(viewTips.koScores||{},vQ);
   return <div>
     <button onClick={()=>onSelect(null)} style={{marginBottom:14,padding:'7px 14px',borderRadius:20,border:'1px solid '+T.border,background:T.surface,color:T.textDim,fontSize:12,cursor:'pointer',fontWeight:600}}>← Zurück</button>
     <div style={{background:T.card,border:'1px solid '+T.border,borderRadius:14,padding:'14px 16px',marginBottom:18,display:'flex',alignItems:'center',gap:12}}>
@@ -750,7 +818,7 @@ const OthersTab=({allUsers,allTips,viewUser,viewTips,onSelect,rGR,rKR,rKS})=>{
           const rW=rKR?.[m.id],rSc=rKS?.[m.id];
           const sd=s?.h!=null&&s?.h!==''&&s?.a!=null&&s?.a!=='';
           const sp=rSc&&sd?mpts(s,rSc):null;
-          const t1=rt(m.t1,vQ,{}),t2=rt(m.t2,vQ,{});
+          const t1=rt(m.t1,vQ,vKW),t2=rt(m.t2,vQ,vKW);
           const aw=sd&&+s.h!==+s.a?(+s.h>+s.a?t1:t2):null;
           const ok=rW&&aw===rW,bad=rW&&aw&&aw!==rW;
           return <div key={m.id} style={{padding:'10px 14px',background:T.card,borderRadius:10,marginBottom:6,border:'1px solid '+(ok?'rgba(46,204,113,.3)':bad?'rgba(231,76,60,.3)':T.border)}}>
@@ -794,8 +862,8 @@ const AdminTab=({apiKey,onSaveKey,onSync,syncing,syncMsg,rGR,rKR})=>{
       <div style={{color:T.goldText,fontWeight:900,fontSize:17,letterSpacing:2,marginTop:6}}>ADMIN</div>
     </div>
     <div style={sec}>
-      {head('🔑','API-Football Key')}
-      <div style={{color:T.textDim,fontSize:11,marginBottom:12,lineHeight:1.6}}>Kostenlos auf <a href="https://dashboard.api-football.com/register" target="_blank" rel="noreferrer">api-sports.io</a> registrieren (100 Abfragen/Tag).</div>
+      {head('🔑','football-data.org Token')}
+      <div style={{color:T.textDim,fontSize:11,marginBottom:12,lineHeight:1.6}}>Free Plan: Worldcup, verzögerte Scores, 10 Requests/Minute.</div>
       <input type="password" placeholder="Key eingeben…" value={key} onChange={e=>setKey(e.target.value)}
         style={inp} onFocus={e=>e.target.style.borderColor=T.goldText} onBlur={e=>e.target.style.borderColor=T.border}/>
       <button onClick={()=>onSaveKey(key)} style={btn(T.goldText,'#060c18')}>Speichern</button>
@@ -813,7 +881,7 @@ const AdminTab=({apiKey,onSaveKey,onSync,syncing,syncMsg,rGR,rKR})=>{
       1. Jeder meldet sich mit Name + PIN an<br/>
       2. Tipps werden automatisch online gespeichert<br/>
       3. Rangliste und Tipps-Tab laden alle Mitspieler automatisch<br/>
-      4. Ergebnisse: API-Key + Sync → für alle speichern<br/>
+      4. Ergebnisse: football-data.org Token + Sync → für alle speichern<br/>
       5. WM: <b style={{color:T.text}}>11. Juni – 19. Juli 2026 · Alle Zeiten MESZ</b>
     </div>
   </div>;
@@ -864,7 +932,7 @@ function App(){
   const [rGR,setRGR]=useState({});
   const [rKR,setRKR]=useState({});
   const [rKS,setRKS]=useState({});
-  const [apiKey,setApiKey]=useState('');
+  const [apiKey,setApiKey]=useState(FD_KEY);
   const [saving,setSaving]=useState(false);
   const [syncing,setSyncing]=useState(false);
   const [syncMsg,setSyncMsg]=useState('');
@@ -899,7 +967,7 @@ function App(){
         }
       }
     }catch(e){setLoginMsg('❌ Supabase nicht erreichbar: '+e.message)}
-    const ak=LS.get('wm26_apikey');if(ak?.value)setApiKey(ak.value);
+    const ak=LS.get('wm26_apikey');setApiKey(ak?.value||FD_KEY);
   };
 
   useEffect(()=>{
