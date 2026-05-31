@@ -173,12 +173,13 @@ const KO=[
   {id:"QF_2",r:"QF",t1:"W:R16_3",t2:"W:R16_4",d:"11.07",t:"23:00",lbl:"Sieger R16_3 vs R16_4"},
   {id:"QF_3",r:"QF",t1:"W:R16_5",t2:"W:R16_6",d:"10.07",t:"21:00",lbl:"Sieger R16_5 vs R16_6"},
   {id:"QF_4",r:"QF",t1:"W:R16_7",t2:"W:R16_8",d:"12.07",t:"03:00",lbl:"Sieger R16_7 vs R16_8"},
-  {id:"SF_1",r:"SF",t1:"W:QF_1",t2:"W:QF_2",d:"14.07",t:"21:00",lbl:"Sieger QF_1 vs QF_2"},
-  {id:"SF_2",r:"SF",t1:"W:QF_3",t2:"W:QF_4",d:"15.07",t:"21:00",lbl:"Sieger QF_3 vs QF_4"},
+  {id:"SF_1",r:"SF",t1:"W:QF_1",t2:"W:QF_3",d:"14.07",t:"21:00",lbl:"Sieger QF_1 vs QF_3"},
+  {id:"SF_2",r:"SF",t1:"W:QF_2",t2:"W:QF_4",d:"15.07",t:"21:00",lbl:"Sieger QF_2 vs QF_4"},
+  {id:"THIRD",r:"THIRD",t1:"L:SF_1",t2:"L:SF_2",d:"18.07",t:"23:00",lbl:"Spiel um Platz 3"},
   {id:"FINAL",r:"FINAL",t1:"W:SF_1",t2:"W:SF_2",d:"19.07",t:"21:00",lbl:"🏆 WM-Finale"},
 ];
-const KOR=[{id:"R32",lbl:"16tel"},{id:"R16",lbl:"Achtel"},{id:"QF",lbl:"Viertel"},{id:"SF",lbl:"Halbfinale"},{id:"FINAL",lbl:"🏆 Finale"}];
-const RP={R32:1,R16:2,QF:3,SF:4,FINAL:5};
+const KOR=[{id:"R32",lbl:"16tel"},{id:"R16",lbl:"Achtel"},{id:"QF",lbl:"Viertel"},{id:"SF",lbl:"Halbfinale"},{id:"THIRD",lbl:"Platz 3"},{id:"FINAL",lbl:"🏆 Finale"}];
+const RP={R32:1,R16:2,QF:3,SF:4,THIRD:2,FINAL:5};
 
 // ── Helpers ──
 const gms=g=>{const t=GRP[g];return PAIRS.map(([hi,ai],i)=>({id:i,home:t[hi],away:t[ai],md:MDS[i]}))};
@@ -233,7 +234,7 @@ function qualifiers(gTips={}){
   }
   return q;
 }
-const rt=(src,q,kw)=>!src?'?':src.startsWith('W:')?kw?.[src.slice(2)]||'?':q?.[src]||'?';
+const rt=(src,q,kw)=>!src?'?':src.startsWith('W:')?kw?.[src.slice(2)]||'?':src.startsWith('L:')?kw?.['L:'+src.slice(2)]||'?':q?.[src]||'?';
 function koWinners(koScores={},q={}){
   const w={};
   KO.forEach(m=>{
@@ -241,7 +242,9 @@ function koWinners(koScores={},q={}){
     const t1=rt(m.t1,q,w),t2=rt(m.t2,q,w);
     const done=s&&s.h!=null&&s.h!==''&&s.a!=null&&s.a!==''&&!isNaN(+s.h)&&!isNaN(+s.a)&&+s.h!==+s.a;
     const winner=done?(+s.h>+s.a?t1:t2):null;
+    const loser=done?(+s.h>+s.a?t2:t1):null;
     if(winner&&winner!=='?')w[m.id]=winner;
+    if(loser&&loser!=='?')w['L:'+m.id]=loser;
   });
   return w;
 }
@@ -298,11 +301,11 @@ async function syncAPI(key){
     }
   });
   const rQ=qualifiers(rG),ko={},ks={};
-  ['R32','R16','QF','SF','FINAL'].forEach(rnd=>KO.filter(m=>m.r===rnd).forEach(m=>{
+  ['R32','R16','QF','SF','THIRD','FINAL'].forEach(rnd=>KO.filter(m=>m.r===rnd).forEach(m=>{
     const t1=rt(m.t1,rQ,ko),t2=rt(m.t2,rQ,ko),k=t1+'__'+t2;
-    if(rK[k]){ko[m.id]=rK[k];ks[m.id]=rS[k]}
+    if(rK[k]){ko[m.id]=rK[k];ko['L:'+m.id]=rK[k]===t1?t2:t1;ks[m.id]=rS[k]}
   }));
-  return{rG,rK:ko,rS:ks,n:fx.length,gn:Object.values(rG).reduce((n,g)=>n+Object.keys(g).length,0)};
+  return{rG,rK:ko,rS:ks,n:fx.length,gn:Object.values(rG).reduce((n,g)=>n+Object.keys(g).length,0),kn:Object.keys(ko).filter(k=>!k.startsWith('L:')).length};
 }
 
 // ── Design tokens ──
@@ -446,7 +449,7 @@ const MatchCard=({m,tip,real,onH,onA,locked})=>{
 };
 
 // ── Groups Tab ──
-const GroupsTab=({group,setGroup,tips,updateTip,gtCount,realGR,locked})=>{
+const GroupsTab=({group,setGroup,tips,updateTip,gtCount,realGR,locked,hideProgress})=>{
   const [view,setView]=useState('tips');
   const realG=realGR?.[group]||{};
   const hasReal=Object.keys(realG).length>0;
@@ -455,7 +458,7 @@ const GroupsTab=({group,setGroup,tips,updateTip,gtCount,realGR,locked})=>{
   return <div>
     {locked&&<LockBar/>}
     {/* Progress */}
-    <div style={{background:T.card,borderRadius:10,padding:'12px 14px',marginBottom:14,border:'1px solid '+T.border}}>
+    {!hideProgress&&<div style={{background:T.card,borderRadius:10,padding:'12px 14px',marginBottom:14,border:'1px solid '+T.border}}>
       <div style={{display:'flex',justifyContent:'space-between',marginBottom:8}}>
         <span style={{fontSize:12,color:T.textDim,fontWeight:600}}>⚽ Gruppen-Tipps</span>
         <span style={{fontSize:12,fontWeight:700,color:gtCount===72?T.green:T.goldText}}>{gtCount}/72{gtCount===72&&' ✓'}</span>
@@ -463,16 +466,16 @@ const GroupsTab=({group,setGroup,tips,updateTip,gtCount,realGR,locked})=>{
       <div style={{height:4,background:T.surface,borderRadius:2}}>
         <div style={{height:'100%',background:gtCount===72?T.green:T.goldText,borderRadius:2,width:(gtCount/72*100)+'%',transition:'width .4s'}}/>
       </div>
-    </div>
+    </div>}
     {/* Group picker */}
-    <div style={{display:'flex',flexWrap:'wrap',gap:5,marginBottom:12}}>
+    {!hideProgress&&<div style={{display:'flex',flexWrap:'wrap',gap:5,marginBottom:12}}>
       {Object.keys(GRP).map(g=>(
         <button key={g} onClick={()=>setGroup(g)} style={{width:36,height:36,borderRadius:8,
           border:'1px solid '+(group===g?T.goldText:T.border),
           background:group===g?T.goldText:T.surface,
           color:group===g?'#060c18':T.textDim,fontWeight:700,fontSize:13,cursor:'pointer'}}>{g}</button>
       ))}
-    </div>
+    </div>}
     {hasReal&&<div style={{display:'flex',gap:6,marginBottom:12}}>
       {[['tips','🎯 Meine Tipps'],['real','📊 Live-Tabelle']].map(([v,l])=>(
         <button key={v} onClick={()=>setView(v)} style={{flex:1,padding:'8px 6px',borderRadius:8,
@@ -497,23 +500,23 @@ const GroupsTab=({group,setGroup,tips,updateTip,gtCount,realGR,locked})=>{
 };
 
 // ── KO Tab ──
-const KOTab=({koRound,setKoRound,koScores,q,updateKoScore,koScoreCount,rKR,rKS,locked})=>{
+const KOTab=({koRound,setKoRound,koScores,q,updateKoScore,koScoreCount,rKR,rKS,locked,hideProgress})=>{
   const ms=KO.filter(m=>m.r===koRound);
   const kw=koWinners(koScores,q);
   return <div>
     {locked&&<LockBar/>}
-    <div style={{background:T.card,borderRadius:10,padding:'12px 14px',marginBottom:12,border:'1px solid '+T.border,display:'flex',justifyContent:'space-between',alignItems:'center'}}>
+    {!hideProgress&&<div style={{background:T.card,borderRadius:10,padding:'12px 14px',marginBottom:12,border:'1px solid '+T.border,display:'flex',justifyContent:'space-between',alignItems:'center'}}>
       <span style={{fontSize:12,color:T.textDim,fontWeight:600}}>⚡ K.O.-Ergebnisse</span>
-      <span style={{fontSize:14,fontWeight:800,color:koScoreCount===31?T.green:'#7aabcc'}}>{koScoreCount}/31{koScoreCount===31&&' ✓'}</span>
-    </div>
-    <div style={{display:'flex',gap:5,marginBottom:16,flexWrap:'wrap'}}>
+      <span style={{fontSize:14,fontWeight:800,color:koScoreCount===32?T.green:'#7aabcc'}}>{koScoreCount}/32{koScoreCount===32&&' ✓'}</span>
+    </div>}
+    {!hideProgress&&<div style={{display:'flex',gap:5,marginBottom:16,flexWrap:'wrap'}}>
       {KOR.map(r=>(
         <button key={r.id} onClick={()=>setKoRound(r.id)} style={{flex:'none',padding:'7px 11px',borderRadius:20,
           border:'1px solid '+(koRound===r.id?T.goldText:T.border),
           background:koRound===r.id?T.goldDim:T.surface,
           color:koRound===r.id?T.goldText:T.textDim,fontWeight:600,fontSize:11,cursor:'pointer'}}>{r.lbl}</button>
       ))}
-    </div>
+    </div>}
     {koRound==='R32'&&<div style={{background:T.blueDim,border:'1px solid rgba(45,125,210,.25)',borderRadius:10,padding:'10px 14px',marginBottom:14,fontSize:12,color:T.textDim,lineHeight:1.6}}>
       💡 Teams werden aus deinen Gruppen-Tipps befüllt. Tipp das Ergebnis nach 90 Min. — der Sieger ergibt sich automatisch.
     </div>}
@@ -526,6 +529,7 @@ const KOTab=({koRound,setKoRound,koScores,q,updateKoScore,koScoreCount,rKR,rKS,l
         const done=h!==null&&a!==null&&!isNaN(h)&&!isNaN(a);
         const draw=done&&h===a;
         const aw=done&&!draw?(h>a?t1:t2):null;
+        const winText=m.r==='FINAL'?'gewinnt':m.r==='THIRD'?'gewinnt Platz 3':'kommt weiter';
         const sP=rSc&&done?mpts(sc,rSc):null;
         const wP=aw&&rW?(aw===rW?RP[m.r]:0):null;
         let top=T.border;
@@ -561,7 +565,7 @@ const KOTab=({koRound,setKoRound,koScores,q,updateKoScore,koScoreCount,rKR,rKS,l
             </div>}
             {aw&&!draw&&<div style={{marginTop:8,display:'flex',alignItems:'center',gap:8,padding:'7px 12px',background:T.goldDim,borderRadius:8,border:'1px solid rgba(232,180,0,.2)'}}>
               <Flag c={aw} s={16}/>
-              <span style={{fontSize:12,fontWeight:700,color:T.goldText,flex:1}}>{aw} kommt weiter</span>
+              <span style={{fontSize:12,fontWeight:700,color:T.goldText,flex:1}}>{aw} {winText}</span>
               {wP!==null&&<Badge pts={wP} label="Sieg" sm/>}
             </div>}
             {(rW||rSc)&&<div style={{marginTop:8,paddingTop:8,borderTop:'1px solid '+T.border,display:'flex',justifyContent:'space-between',alignItems:'center',flexWrap:'wrap',gap:6}}>
@@ -578,6 +582,37 @@ const KOTab=({koRound,setKoRound,koScores,q,updateKoScore,koScoreCount,rKR,rKS,l
         </div>;
       })}
     </div>
+  </div>;
+};
+
+const MyTipsTab=({section,setSection,group,setGroup,koRound,setKoRound,tips,updG,updKS,gtCount,koSC,rGR,rKR,rKS,q,locked})=>{
+  const groups=Object.keys(GRP),rounds=KOR.map(r=>r.id),total=72+32,done=gtCount+koSC;
+  return <div>
+    <div style={{background:T.card,borderRadius:10,padding:'12px 14px',marginBottom:14,border:'1px solid '+T.border}}>
+      <div style={{display:'flex',justifyContent:'space-between',marginBottom:8}}>
+        <span style={{fontSize:12,color:T.textDim,fontWeight:600}}>🎯 Tipps</span>
+        <span style={{fontSize:12,fontWeight:700,color:done===total?T.green:T.goldText}}>{done}/{total}{done===total&&' ✓'}</span>
+      </div>
+      <div style={{height:4,background:T.surface,borderRadius:2}}>
+        <div style={{height:'100%',background:done===total?T.green:T.goldText,borderRadius:2,width:(done/total*100)+'%',transition:'width .4s'}}/>
+      </div>
+    </div>
+    <div style={{display:'flex',flexWrap:'wrap',gap:5,marginBottom:10}}>
+      {groups.map(g=><button key={g} onClick={()=>{setSection(g);setGroup(g)}} style={{width:36,height:36,borderRadius:8,
+        border:'1px solid '+(section===g?T.goldText:T.border),background:section===g?T.goldText:T.surface,
+        color:section===g?'#060c18':T.textDim,fontWeight:800,fontSize:13,cursor:'pointer'}}>{g}</button>)}
+    </div>
+    <div style={{display:'flex',flexWrap:'wrap',overflowX:'auto',gap:5,marginBottom:14,paddingBottom:2}}>
+      {rounds.map(id=>{
+        const lbl=KOR.find(r=>r.id===id)?.lbl||id,isOn=section===id;
+        return <button key={id} onClick={()=>{setSection(id);setKoRound(id)}} style={{flex:'0 0 auto',height:34,padding:'0 11px',borderRadius:8,
+          border:'1px solid '+(isOn?T.goldText:T.border),background:isOn?T.goldText:T.surface,
+          color:isOn?'#060c18':T.textDim,fontWeight:800,fontSize:11,cursor:'pointer',whiteSpace:'nowrap'}}>{lbl}</button>;
+      })}
+    </div>
+    {groups.includes(section)
+      ?<GroupsTab group={group} setGroup={g=>{setGroup(g);setSection(g)}} tips={tips.groupTips} updateTip={updG} gtCount={gtCount} realGR={rGR} locked={locked} hideProgress/>
+      :<KOTab koRound={koRound} setKoRound={r=>{setKoRound(r);setSection(r)}} koScores={tips.koScores||{}} q={q} updateKoScore={updKS} koScoreCount={koSC} rKR={rKR} rKS={rKS} locked={locked} hideProgress/>}
   </div>;
 };
 
@@ -622,7 +657,7 @@ const LeaderboardTab=({allUsers,allTips,me,rGR,rKR,rKS,onView})=>{
       <div style={{fontWeight:700,color:T.text,marginBottom:4,fontSize:12}}>📋 Punktesystem</div>
       ⚽ Richtiger Ausgang: <b style={{color:T.text}}>1 Pkt</b> · Richtiges Ergebnis: <b style={{color:T.text}}>3 Pkt</b><br/>
       ⚡ K.O. 90-Min-Ergebnis: <b style={{color:T.text}}>1 / 3 Pkt</b><br/>
-      ⚡ Richtiger Weiterkommer: <b style={{color:T.text}}>16tel +1 · AF +2 · VF +3 · HF +4 · Finale +5</b><br/>
+      ⚡ Richtiger Sieger: <b style={{color:T.text}}>16tel +1 · AF +2 · VF +3 · HF +4 · Platz 3 +2 · Finale +5</b><br/>
       🎁 Beide Teams + Sieger korrekt: <b style={{color:T.text}}>+1 Bonus</b>
     </div>
   </div>;
@@ -637,11 +672,11 @@ const AllMatchTips=({allUsers,allTips,rGR})=>{
   return <div style={{marginTop:24}}>
     <div style={{display:'flex',alignItems:'flex-end',justifyContent:'space-between',gap:12,marginBottom:10}}>
       <div>
-        <div style={{color:T.goldText,fontWeight:900,fontSize:15,letterSpacing:1}}>Alle Tipps pro Spiel</div>
+        <div style={{color:T.goldText,fontWeight:900,fontSize:15,letterSpacing:1}}>Alle Tipps</div>
         <div style={{color:T.textMuted,fontSize:11,marginTop:2}}>Exakte Treffer werden grün markiert.</div>
       </div>
     </div>
-    <div style={{display:'flex',overflowX:'auto',gap:5,marginBottom:12,paddingBottom:2}}>
+    <div style={{display:'flex',flexWrap:'wrap' ,overflowX:'auto',gap:5,marginBottom:12,paddingBottom:2}}>
       {Object.keys(GRP).map(g=><button key={g} onClick={()=>setGrp(g)} style={{width:34,height:34,flex:'0 0 auto',borderRadius:8,border:'1px solid '+(grp===g?T.goldText:T.border),background:grp===g?T.goldText:T.surface,color:grp===g?'#060c18':T.textDim,fontWeight:800,fontSize:13,cursor:'pointer'}}>{g}</button>)}
     </div>
     {!hasUsers&&<div style={{background:T.surface,border:'1px solid '+T.border,borderRadius:12,padding:'18px 14px',color:T.textMuted,textAlign:'center',fontSize:12}}>Sobald Mitspieler Tipps abgegeben haben, erscheinen sie hier pro Match.</div>}
@@ -689,7 +724,7 @@ const AllKOTips=({allUsers,allTips,rGR,rKR,rKS})=>{
   const scoreDone=s=>s&&s.h!=null&&s.h!==''&&s.a!=null&&s.a!=='';
   return <div style={{marginTop:26}}>
     <div style={{marginBottom:10}}>
-      <div style={{color:T.goldText,fontWeight:900,fontSize:15,letterSpacing:1}}>K.O.-Tipps aller</div>
+      <div style={{color:T.goldText,fontWeight:900,fontSize:15,letterSpacing:1}}>K.O.-Tipps</div>
       <div style={{color:T.textMuted,fontSize:11,marginTop:2}}>Grün = richtige Begegnung vorhergesagt.</div>
     </div>
     <div style={{display:'flex',gap:5,marginBottom:12,flexWrap:'wrap'}}>
@@ -850,7 +885,7 @@ const OthersTab=({allUsers,allTips,viewUser,viewTips,onSelect,rGR,rKR,rKS})=>{
 const AdminTab=({apiKey,onSaveKey,onSync,syncing,syncMsg,rGR,rKR})=>{
   const [key,setKey]=useState(apiKey);
   const gC=Object.values(rGR||{}).reduce((n,g)=>n+Object.keys(g).length,0);
-  const kC=Object.keys(rKR||{}).length;
+  const kC=Object.keys(rKR||{}).filter(k=>!k.startsWith('L:')).length;
   const sec={background:T.card,border:'1px solid '+T.border,borderRadius:12,padding:16,marginBottom:12};
   const head=(emoji,title)=><div style={{fontWeight:700,fontSize:13,color:T.text,marginBottom:4}}>{emoji} {title}</div>;
   const sub=txt=><div style={{color:T.textDim,fontSize:11,marginBottom:12,lineHeight:1.6}}>{txt}</div>;
@@ -924,7 +959,8 @@ function App(){
   const [tips,setTips]=useState({groupTips:{},koScores:{}});
   const [allUsers,setAllUsers]=useState([]);
   const [allTips,setAllTips]=useState({});
-  const [tab,setTab]=useState('groups');
+  const [tab,setTab]=useState('mytips');
+  const [mySection,setMySection]=useState('A');
   const [group,setGroup]=useState('A');
   const [koRound,setKoRound]=useState('R32');
   const [viewUser,setViewUser]=useState(null);
@@ -975,7 +1011,7 @@ function App(){
     const iv=setInterval(()=>setLocked(isLocked()),60000);
     return()=>clearInterval(iv);
   },[]);
-  useEffect(()=>{if(tab==='leaderboard'||tab==='others')loadAll().catch(()=>{})},[tab]);
+  useEffect(()=>{if(tab==='leaderboard'||tab==='overview')loadAll().catch(()=>{})},[tab]);
 
   const doLogin=async()=>{
     const n=ni.trim(),p=pin.trim();if(!n||!p)return;
@@ -1024,10 +1060,10 @@ function App(){
     if(!apiKey){setSyncMsg('❌ API-Key eingeben');return}
     setSyncing(true);setSyncMsg('');
     try{
-      const{rG,rK,rS,n,gn}=await syncAPI(apiKey);
+      const{rG,rK,rS,n,gn,kn}=await syncAPI(apiKey);
       setRGR(rG);setRKR(rK);setRKS(rS);
       await sb('app_state?on_conflict=key',{method:'POST',headers:{Prefer:'resolution=merge-duplicates,return=representation'},body:JSON.stringify({key:'results',value:{rGR:rG,rKR:rK,rKS:rS},updated_at:new Date().toISOString()})});
-      setSyncMsg('✅ '+n+' Spiele · '+gn+' Gruppen · '+Object.keys(rK).length+' K.O.');
+      setSyncMsg('✅ '+n+' Spiele · '+gn+' Gruppen · '+kn+' K.O.');
       await loadAll();
     }catch(e){setSyncMsg('❌ '+e.message)}
     setSyncing(false);
@@ -1045,7 +1081,7 @@ function App(){
   const gtCount=Object.values(tips.groupTips||{}).reduce((n,g)=>n+Object.values(g||{}).filter(m=>m?.h!=null&&m?.h!==''&&m?.a!=null&&m?.a!=='').length,0);
   const koSC=Object.keys(tips.koScores||{}).filter(id=>{const s=tips.koScores[id];return s?.h!=null&&s?.h!==''&&s?.a!=null&&s?.a!==''}).length;
 
-  const TABS=[['groups','⚽','Gruppen'],['knockout','⚡','K.O.'],['leaderboard','🏅','Rangliste'],['others','👀','Tipps'],['admin','⚙️','Admin']];
+  const TABS=[['mytips','🎯','Meine Tipps'],['leaderboard','🏅','Rangliste'],['overview','👀','Alle Tipps'],['admin','⚙️','Admin']];
 
   if(!user)return <Login name={ni} setName={setNi} pin={pin} setPin={setPin} onLogin={doLogin} loginMsg={loginMsg} loginLoading={loginLoading}/>;
   return <div style={{minHeight:'100vh',background:T.bg,color:T.text}}>
@@ -1076,10 +1112,9 @@ function App(){
     </div>
     {/* Content */}
     <div style={{padding:'14px 14px',paddingBottom:80,maxWidth:640,margin:'0 auto'}}>
-      {tab==='groups'&&<GroupsTab group={group} setGroup={setGroup} tips={tips.groupTips} updateTip={updG} gtCount={gtCount} realGR={rGR} locked={locked}/>}
-      {tab==='knockout'&&<KOTab koRound={koRound} setKoRound={setKoRound} koScores={tips.koScores||{}} q={q} updateKoScore={updKS} koScoreCount={koSC} rKR={rKR} rKS={rKS} locked={locked}/>}
-      {tab==='leaderboard'&&<LeaderboardTab allUsers={allUsers} allTips={allTips} me={user} rGR={rGR} rKR={rKR} rKS={rKS} onView={u=>{loadView(u);setTab('others')}}/>}
-      {tab==='others'&&<OthersTab allUsers={allUsers} allTips={allTips} viewUser={viewUser} viewTips={viewTips} onSelect={loadView} rGR={rGR} rKR={rKR} rKS={rKS}/>}
+      {tab==='mytips'&&<MyTipsTab section={mySection} setSection={setMySection} group={group} setGroup={setGroup} koRound={koRound} setKoRound={setKoRound} tips={tips} updG={updG} updKS={updKS} gtCount={gtCount} koSC={koSC} rGR={rGR} rKR={rKR} rKS={rKS} q={q} locked={locked}/>}
+      {tab==='leaderboard'&&<LeaderboardTab allUsers={allUsers} allTips={allTips} me={user} rGR={rGR} rKR={rKR} rKS={rKS} onView={u=>{loadView(u);setTab('overview')}}/>}
+      {tab==='overview'&&<OthersTab allUsers={allUsers} allTips={allTips} viewUser={viewUser} viewTips={viewTips} onSelect={loadView} rGR={rGR} rKR={rKR} rKS={rKS}/>}
       {tab==='admin'&&<AdminTab apiKey={apiKey} onSaveKey={saveKey} onSync={doSync} syncing={syncing} syncMsg={syncMsg} rGR={rGR} rKR={rKR}/>}
     </div>
   </div>;
