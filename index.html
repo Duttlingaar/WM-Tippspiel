@@ -376,6 +376,9 @@ const LockBar=()=>
 
 const DateBadge=({d,t})=>d&&t?
   <span style={{fontSize:10,color:T.textMuted,fontWeight:500}}>{d} · {t}</span>:null;
+const todayDM=()=>new Date().toLocaleDateString('de-DE',{timeZone:'Europe/Berlin',day:'2-digit',month:'2-digit'});
+const tipDone=s=>s&&s.h!=null&&s.h!==''&&s.a!=null&&s.a!=='';
+const pairOk=(a,b,c,d)=>a&&b&&c&&d&&a!=='?'&&b!=='?'&&c!=='?'&&d!=='?'&&((a===c&&b===d)||(a===d&&b===c));
 
 // ── Standings ──
 const Standings=({group,st})=>
@@ -665,6 +668,87 @@ const LeaderboardTab=({allUsers,allTips,me,rGR,rKR,rKS,onView})=>{
       ⚡ Richtiger Sieger: <b style={{color:T.text}}>16tel +1 · AF +2 · VF +3 · HF +4 · Platz 3 +2 · Finale +5</b><br/>
       🎁 Beide Teams + Sieger korrekt: <b style={{color:T.text}}>+1 Bonus</b>
     </div>
+  </div>;
+};
+
+const CurrentGamesTab=({allUsers,allTips,rGR,rKR,rKS})=>{
+  const today=todayDM(),rQ=qualifiers(rGR||{}),games=[];
+  Object.keys(GRP).forEach(g=>gms(g).forEach(m=>{
+    const sched=gs(m.home,m.away);
+    if(sched?.d===today)games.push({kind:'group',key:'G_'+g+'_'+m.id,group:g,m,sched,real:rGR?.[g]?.[m.id]||null});
+  }));
+  KO.forEach(m=>{
+    if(m.d===today){
+      const t1=rt(m.t1,rQ,rKR||{}),t2=rt(m.t2,rQ,rKR||{});
+      games.push({kind:'ko',key:'K_'+m.id,m,sched:{d:m.d,t:m.t},t1,t2,real:rKS?.[m.id]||null,winner:rKR?.[m.id]||null});
+    }
+  });
+  const scoreColor=pts=>pts==null?T.textMuted:pts===0?T.red:pts===1?T.amber:T.green;
+  return <div>
+    <div style={{background:'linear-gradient(135deg,#0a1628,#0e2040)',borderRadius:16,padding:'20px',marginBottom:16,textAlign:'center',border:'1px solid '+T.border}}>
+      <div style={{fontSize:30}}>📅</div>
+      <div style={{color:T.goldText,fontWeight:900,fontSize:17,letterSpacing:2,marginTop:6}}>AKTUELLE SPIELE</div>
+      <div style={{color:T.textMuted,fontSize:12,marginTop:6}}>Heute · {today}.2026</div>
+    </div>
+    {games.length===0&&<div style={{background:T.surface,border:'1px solid '+T.border,borderRadius:12,padding:'22px 14px',textAlign:'center',color:T.textMuted,fontSize:13,lineHeight:1.6}}>
+      Heute sind keine WM-Spiele in der App hinterlegt.
+    </div>}
+    {games.map(g=>{
+      const isKO=g.kind==='ko';
+      const h=isKO?g.t1:g.m.home,a=isKO?g.t2:g.m.away,hasTeams=h&&a&&h!=='?'&&a!=='?';
+      return <div key={g.key} style={{background:T.card,border:'1px solid '+T.border,borderRadius:12,marginBottom:10,overflow:'hidden'}}>
+        <div style={{padding:'11px 12px',borderBottom:'1px solid '+T.border}}>
+          <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',gap:8,marginBottom:8}}>
+            <DateBadge d={g.sched.d} t={g.sched.t+' MESZ'}/>
+            <span style={{fontSize:10,color:T.textMuted,fontWeight:700,textTransform:'uppercase'}}>{isKO?KOR.find(r=>r.id===g.m.r)?.lbl:g.group}</span>
+          </div>
+          <div style={{display:'flex',alignItems:'center',gap:8}}>
+            <span style={{flex:1,textAlign:'right',fontSize:13,fontWeight:900,color:hasTeams?T.text:T.textMuted,display:'flex',justifyContent:'flex-end',alignItems:'center',gap:5}}>{hasTeams&&<Flag c={h} s={16}/>} {hasTeams?h:g.m.lbl}</span>
+            <span style={{color:T.textMuted,fontWeight:800,fontSize:12}}>vs</span>
+            <span style={{flex:1,fontSize:13,fontWeight:900,color:hasTeams?T.text:T.textMuted,display:'flex',alignItems:'center',gap:5}}>{hasTeams?a:'offen'} {hasTeams&&<Flag c={a} s={16}/>}</span>
+          </div>
+          {g.real&&<div style={{marginTop:8,textAlign:'center',fontSize:12,color:T.textDim}}>Ergebnis <b style={{color:T.text}}>{g.real.h}:{g.real.a}</b>{g.winner&&<span> · Sieger <b style={{color:T.text}}>{g.winner}</b></span>}</div>}
+        </div>
+        <div style={{padding:'8px 10px'}}>
+          {allUsers.map(u=>{
+            const t=allTips?.[u]||EMPTY_TIPS;
+            let row,pts=null,exact=false,partial=false;
+            if(isKO){
+              const q=qualifiers(t.groupTips||{}),kw=koWinners(t.koScores||{},q),s=t.koScores?.[g.m.id]||{};
+              const th=rt(g.m.t1,q,kw),ta=rt(g.m.t2,q,kw),done=tipDone(s);
+              const pairing=pairOk(th,ta,h,a);
+              const predW=done&&+s.h!==+s.a?(+s.h>+s.a?th:ta):null;
+              const scorePts=g.real&&done?mpts(s,g.real):null;
+              const winPts=g.winner&&predW?(predW===g.winner?RP[g.m.r]:0):null;
+              const bonus=pairing&&winPts>0?1:0;
+              pts=scorePts!==null||winPts!==null?(scorePts||0)+(winPts||0)+bonus:null;
+              exact=pairing;partial=pts>0&&!pairing;
+              row=<>
+                <div style={{display:'flex',alignItems:'center',gap:8}}>
+                  <span style={{flex:1,minWidth:0,fontSize:12,fontWeight:800,color:pairing?T.green:T.text,overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}}>{u}</span>
+                  <span style={{fontSize:13,fontWeight:900,color:done?pairing?T.green:T.goldText:T.textMuted}}>{done?s.h+':'+s.a:'–:–'}</span>
+                  {pts!==null&&<span style={{fontSize:10,fontWeight:800,color:scoreColor(pts),width:32,textAlign:'right'}}>{pts}p</span>}
+                </div>
+                <div style={{marginTop:5,fontSize:11,color:pairing?T.green:T.textDim,display:'flex',alignItems:'center',gap:5,flexWrap:'wrap'}}>
+                  {th!=='?'&&<Flag c={th} s={13}/>}<span>{th}</span><span>vs</span><span>{ta}</span>{ta!=='?'&&<Flag c={ta} s={13}/>}
+                </div>
+              </>;
+            }else{
+              const s=t.groupTips?.[g.group]?.[g.m.id]||{},done=tipDone(s);
+              pts=g.real&&done?mpts(s,g.real):null;exact=pts===3;partial=pts===1;
+              row=<div style={{display:'flex',alignItems:'center',gap:10}}>
+                <span style={{flex:1,minWidth:0,fontSize:12,fontWeight:800,color:exact?T.green:T.text,overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}}>{u}</span>
+                <span style={{fontSize:13,fontWeight:900,color:done?exact?T.green:T.goldText:T.textMuted}}>{done?s.h+':'+s.a:'–:–'}</span>
+                {pts!==null&&<span style={{fontSize:10,fontWeight:800,color:scoreColor(pts),width:32,textAlign:'right'}}>{pts}p</span>}
+              </div>;
+            }
+            return <div key={u} style={{padding:'8px 9px',marginBottom:5,borderRadius:9,border:'1px solid '+(exact?'rgba(46,204,113,.45)':partial?'rgba(243,156,18,.28)':pts===0?'rgba(231,76,60,.25)':T.border),background:exact?T.greenDim:partial?T.amberDim:pts===0?T.redDim:T.surface}}>
+              {row}
+            </div>;
+          })}
+        </div>
+      </div>;
+    })}
   </div>;
 };
 
@@ -964,7 +1048,7 @@ function App(){
   const [tips,setTips]=useState({groupTips:{},koScores:{}});
   const [allUsers,setAllUsers]=useState([]);
   const [allTips,setAllTips]=useState({});
-  const [tab,setTab]=useState('mytips');
+  const [tab,setTab]=useState(isLocked()?'current':'mytips');
   const [mySection,setMySection]=useState('A');
   const [group,setGroup]=useState('A');
   const [koRound,setKoRound]=useState('R32');
@@ -1016,7 +1100,8 @@ function App(){
     const iv=setInterval(()=>setLocked(isLocked()),60000);
     return()=>clearInterval(iv);
   },[]);
-  useEffect(()=>{if(tab==='leaderboard'||tab==='overview')loadAll().catch(()=>{})},[tab]);
+  useEffect(()=>{if(tab==='leaderboard'||tab==='overview'||tab==='current')loadAll().catch(()=>{})},[tab]);
+  useEffect(()=>{if(locked&&tab==='mytips')setTab('current')},[locked,tab]);
 
   const doLogin=async()=>{
     const n=ni.trim(),p=pin.trim();if(!n||!p)return;
@@ -1086,7 +1171,9 @@ function App(){
   const gtCount=Object.values(tips.groupTips||{}).reduce((n,g)=>n+Object.values(g||{}).filter(m=>m?.h!=null&&m?.h!==''&&m?.a!=null&&m?.a!=='').length,0);
   const koSC=Object.keys(tips.koScores||{}).filter(id=>{const s=tips.koScores[id];return s?.h!=null&&s?.h!==''&&s?.a!=null&&s?.a!==''}).length;
 
-  const TABS=[['mytips','🎯','Meine Tipps'],['leaderboard','🏅','Rangliste'],['overview','👀','Alle Tipps'],['admin','⚙️','Admin']];
+  const TABS=locked
+    ?[['current','📅','Aktuelle Spiele'],['leaderboard','🏅','Rangliste'],['overview','👀','Alle Tipps'],['admin','⚙️','Admin']]
+    :[['mytips','🎯','Meine Tipps'],['leaderboard','🏅','Rangliste'],['overview','👀','Alle Tipps'],['admin','⚙️','Admin']];
 
   if(!user)return <Login name={ni} setName={setNi} pin={pin} setPin={setPin} onLogin={doLogin} loginMsg={loginMsg} loginLoading={loginLoading}/>;
   return <div style={{minHeight:'100vh',background:T.bg,color:T.text}}>
@@ -1117,7 +1204,8 @@ function App(){
     </div>
     {/* Content */}
     <div style={{padding:'14px 14px',paddingBottom:80,maxWidth:640,margin:'0 auto'}}>
-      {tab==='mytips'&&<MyTipsTab section={mySection} setSection={setMySection} group={group} setGroup={setGroup} koRound={koRound} setKoRound={setKoRound} tips={tips} updG={updG} updKS={updKS} gtCount={gtCount} koSC={koSC} rGR={rGR} rKR={rKR} rKS={rKS} q={q} locked={locked}/>}
+      {tab==='mytips'&&!locked&&<MyTipsTab section={mySection} setSection={setMySection} group={group} setGroup={setGroup} koRound={koRound} setKoRound={setKoRound} tips={tips} updG={updG} updKS={updKS} gtCount={gtCount} koSC={koSC} rGR={rGR} rKR={rKR} rKS={rKS} q={q} locked={locked}/>}
+      {tab==='current'&&<CurrentGamesTab allUsers={allUsers} allTips={allTips} rGR={rGR} rKR={rKR} rKS={rKS}/>}
       {tab==='leaderboard'&&<LeaderboardTab allUsers={allUsers} allTips={allTips} me={user} rGR={rGR} rKR={rKR} rKS={rKS} onView={u=>{loadView(u);setTab('overview')}}/>}
       {tab==='overview'&&<OthersTab allUsers={allUsers} allTips={allTips} viewUser={viewUser} viewTips={viewTips} onSelect={loadView} rGR={rGR} rKR={rKR} rKS={rKS}/>}
       {tab==='admin'&&<AdminTab apiKey={apiKey} onSaveKey={saveKey} onSync={doSync} syncing={syncing} syncMsg={syncMsg} rGR={rGR} rKR={rKR}/>}
