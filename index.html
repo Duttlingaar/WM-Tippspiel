@@ -253,6 +253,7 @@ function koWinners(koScores={},q={}){
   });
   return w;
 }
+// Gruppenspiel: 1pt richtiger Ausgang, 3pt richtiges Ergebnis
 function mpts(tip,real){
   if(!tip||!real||tip.h==null||tip.h===''||tip.a==null||tip.a==='')return 0;
   if(real.h==null||real.a==null)return 0;
@@ -261,29 +262,69 @@ function mpts(tip,real){
   if(Math.sign(tH-tA)===Math.sign(rH-rA))return 1;
   return 0;
 }
+// K.O.-Spiel: 2pt richtiger Ausgang, 6pt richtiges Ergebnis
+function koMatchPts(tip,real){
+  if(!tip||!real||tip.h==null||tip.h===''||tip.a==null||tip.a==='')return 0;
+  if(real.h==null||real.a==null)return 0;
+  const tH=+tip.h,tA=+tip.a,rH=+real.h,rA=+real.a;
+  if(tH===rH&&tA===rA)return 6;
+  if(Math.sign(tH-tA)===Math.sign(rH-rA))return 2;
+  return 0;
+}
+// Punkte pro richtigem Team in der Runde
+const TEAM_PTS={R32:1,R16:2,QF:3,SF:4,FINAL:5};
+
 function score(ut,rGR,rKR,rKS){
-  let p=0;const bd={g:0,k:0,s:0,b:0};
+  let p=0;const bd={g:0,teams:0,result:0};
   const rQ=qualifiers(rGR||{}),uQ=qualifiers(ut.groupTips||{});
   const uKW=koWinners(ut.koScores||{},uQ);
-  Object.keys(GRP).forEach(g=>gms(g).forEach(({id})=>{const x=mpts(ut.groupTips?.[g]?.[id],rGR?.[g]?.[id]);p+=x;bd.g+=x}));
-  KO.forEach(m=>{
-    const uS=ut.koScores?.[m.id],rW=rKR?.[m.id];
+
+  // Gruppenspiel-Ergebnisse
+  Object.keys(GRP).forEach(g=>gms(g).forEach(({id})=>{
+    const x=mpts(ut.groupTips?.[g]?.[id],rGR?.[g]?.[id]);p+=x;bd.g+=x;
+  }));
+
+  // Teams pro Runde vergleichen (User vs. Real)
+  const uTeams={R32:new Set(),R16:new Set(),QF:new Set(),SF:new Set(),FINAL:new Set()};
+  const rTeams={R32:new Set(),R16:new Set(),QF:new Set(),SF:new Set(),FINAL:new Set()};
+  KO.filter(m=>m.r!=='THIRD').forEach(m=>{
     const uT1=rt(m.t1,uQ,uKW),uT2=rt(m.t2,uQ,uKW);
-    const uW=uS&&uS.h!=null&&uS.a!=null&&+uS.h!==+uS.a?(+uS.h>+uS.a?uT1:uT2):null;
-    if(uW&&rW&&uW===rW){
-      p+=RP[m.r];bd.k+=RP[m.r];
-      const rT1=rt(m.t1,rQ,rKR||{}),rT2=rt(m.t2,rQ,rKR||{});
-      if(uT1===rT1&&uT2===rT2&&uT1!=='?'&&rT1!=='?'){p++;bd.b++}
-    }
-    const x=mpts(uS,rKS?.[m.id]);p+=x;bd.s+=x;
+    const rT1=rt(m.t1,rQ,rKR||{}),rT2=rt(m.t2,rQ,rKR||{});
+    if(uT1&&uT1!=='?')uTeams[m.r]?.add(uT1);
+    if(uT2&&uT2!=='?')uTeams[m.r]?.add(uT2);
+    if(rT1&&rT1!=='?')rTeams[m.r]?.add(rT1);
+    if(rT2&&rT2!=='?')rTeams[m.r]?.add(rT2);
   });
+  ['R32','R16','QF','SF','FINAL'].forEach(round=>{
+    const pts=TEAM_PTS[round];
+    rTeams[round].forEach(team=>{if(uTeams[round].has(team)){p+=pts;bd.teams+=pts;}});
+  });
+
+  // Weltmeister-Bonus: +6 Pkt (zusätzlich zu den 5 Pkt als Finalist)
+  const rChamp=rKR?.['FINAL'];
+  const uChamp=uKW?.['FINAL'];
+  if(rChamp&&uChamp&&rChamp===uChamp){p+=6;bd.teams+=6;}
+
+  // K.O.-Ergebnisse: 2pt Ausgang, 6pt exakt
+  KO.forEach(m=>{
+    const x=koMatchPts(ut.koScores?.[m.id],rKS?.[m.id]);p+=x;bd.result+=x;
+  });
+
   return{total:p,bd};
 }
 
 // ── API ──
 async function syncAPI(key){
-  const r=await fetch('https://api.football-data.org/v4/competitions/WC/matches?season=2026',{headers:{'X-Auth-Token':key}});
-  if(!r.ok)throw new Error('HTTP '+r.status);
+  // Via Supabase Edge Function (umgeht CORS-Blockierung von football-data.org)
+  const r=await fetch(SB_URL+'/functions/v1/football-sync',{
+    method:'POST',
+    headers:{
+      'Content-Type':'application/json',
+      'Authorization':'Bearer '+SB_KEY
+    },
+    body:JSON.stringify({token:key})
+  });
+  if(!r.ok){const t=await r.text();throw new Error('Sync-Fehler: '+r.status+' '+t);}
   const d=await r.json();
   if(d.error||d.message&&d.message!=='')throw new Error(d.message||d.error);
   const fx=d.matches||[],rG={},rK={},rS={};
@@ -652,7 +693,7 @@ const LeaderboardTab=({allUsers,allTips,me,rGR,rKR,rKS,onView})=>{
             {u}{u===me&&<span style={{color:T.goldText,fontSize:10,fontWeight:600,background:T.goldDim,padding:'1px 6px',borderRadius:20}}>Du</span>}
           </div>
           {hasR&&<div style={{fontSize:10,color:T.textMuted,marginTop:3}}>
-            ⚽{sc.bd.g} · ⚡{sc.bd.k} · 📊{sc.bd.s} · 🎁{sc.bd.b}
+            ⚽{sc.bd.g} · 🏅{sc.bd.teams} · 📊{sc.bd.result}
           </div>}
         </div>
         <div style={{textAlign:'right',flexShrink:0}}>
@@ -663,10 +704,9 @@ const LeaderboardTab=({allUsers,allTips,me,rGR,rKR,rKS,onView})=>{
     ))}
     <div style={{marginTop:20,background:T.surface,borderRadius:10,padding:'12px 14px',border:'1px solid '+T.border,fontSize:11,color:T.textDim,lineHeight:2}}>
       <div style={{fontWeight:700,color:T.text,marginBottom:4,fontSize:12}}>📋 Punktesystem</div>
-      ⚽ Richtiger Ausgang: <b style={{color:T.text}}>1 Pkt</b> · Richtiges Ergebnis: <b style={{color:T.text}}>3 Pkt</b><br/>
-      ⚡ K.O. 90-Min-Ergebnis: <b style={{color:T.text}}>1 / 3 Pkt</b><br/>
-      ⚡ Richtiger Sieger: <b style={{color:T.text}}>16tel +1 · AF +2 · VF +3 · HF +4 · Platz 3 +2 · Finale +5</b><br/>
-      🎁 Beide Teams + Sieger korrekt: <b style={{color:T.text}}>+1 Bonus</b>
+      ⚽ Richtiger Ausgang Gruppenspiel: <b style={{color:T.text}}>1 Pkt</b> · Richtiges Ergebnis: <b style={{color:T.text}}>3 Pkt</b><br/>
+      🏅 Richtiges Team im 16tel: <b style={{color:T.text}}>1</b> · Achtel: <b style={{color:T.text}}>2</b> · Viertel: <b style={{color:T.text}}>3</b> · Halbfinale: <b style={{color:T.text}}>4</b> · Finalist: <b style={{color:T.text}}>5</b> · Weltmeister: <b style={{color:T.text}}>6 Pkt</b><br/>
+      📊 Richtiger Ausgang K.O. (90 Min.): <b style={{color:T.text}}>2 Pkt</b> · Richtiges K.O.-Ergebnis: <b style={{color:T.text}}>6 Pkt</b>
     </div>
   </div>;
 };
@@ -718,11 +758,9 @@ const CurrentGamesTab=({allUsers,allTips,rGR,rKR,rKS})=>{
               const th=rt(g.m.t1,q,kw),ta=rt(g.m.t2,q,kw),done=tipDone(s);
               const pairing=pairOk(th,ta,h,a);
               const predW=done&&+s.h!==+s.a?(+s.h>+s.a?th:ta):null;
-              const scorePts=g.real&&done?mpts(s,g.real):null;
-              const winPts=g.winner&&predW?(predW===g.winner?RP[g.m.r]:0):null;
-              const bonus=pairing&&winPts>0?1:0;
-              pts=scorePts!==null||winPts!==null?(scorePts||0)+(winPts||0)+bonus:null;
-              exact=pairing;partial=pts>0&&!pairing;
+              const scorePts=g.real&&done?koMatchPts(s,g.real):null;
+              pts=scorePts!==null?scorePts:null;
+              exact=scorePts===6;partial=scorePts===2;
               row=<>
                 <div style={{display:'flex',alignItems:'center',gap:8}}>
                   <span style={{flex:1,minWidth:0,fontSize:12,fontWeight:800,color:pairing?T.green:T.text,overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}}>{u}</span>
@@ -840,7 +878,7 @@ const AllKOTips=({allUsers,allTips,rGR,rKR,rKS})=>{
           {allUsers.map(u=>{
             const t=allTips?.[u]||EMPTY_TIPS,q=qualifiers(t.groupTips||{}),kw=koWinners(t.koScores||{},q);
             const tipT1=rt(m.t1,q,kw),tipT2=rt(m.t2,q,kw),s=t.koScores?.[m.id]||{};
-            const pairing=pairOk(tipT1,tipT2,realT1,realT2),done=scoreDone(s),pts=realSc&&done?mpts(s,realSc):null;
+            const pairing=pairOk(tipT1,tipT2,realT1,realT2),done=scoreDone(s),pts=realSc&&done?koMatchPts(s,realSc):null;
             return <div key={u} style={{padding:'8px 9px',marginBottom:5,borderRadius:9,
               border:'1px solid '+(pairing?'rgba(46,204,113,.45)':T.border),background:pairing?T.greenDim:T.surface}}>
               <div style={{display:'flex',alignItems:'center',gap:8}}>
