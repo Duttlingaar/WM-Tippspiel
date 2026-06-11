@@ -852,7 +852,7 @@ const AllKOTips=({allUsers,allTips,rGR,rKR,rKS})=>{
   return <div style={{marginTop:26}}>
     <div style={{marginBottom:10}}>
       <div style={{color:T.goldText,fontWeight:900,fontSize:15,letterSpacing:1}}>K.O.-Tipps</div>
-      <div style={{color:T.textMuted,fontSize:11,marginTop:2}}>Grün = richtige Begegnung vorhergesagt.</div>
+      <div style={{color:T.textMuted,fontSize:11,marginTop:2}}>🏅 Begegnung richtig · 📊 Ergebnis richtig · Gesamtpunkte rechts</div>
     </div>
     <div style={{display:'flex',gap:5,marginBottom:12,flexWrap:'wrap'}}>
       {KOR.map(r=><button key={r.id} onClick={()=>setRound(r.id)} style={{flex:'none',padding:'7px 11px',borderRadius:20,
@@ -878,16 +878,28 @@ const AllKOTips=({allUsers,allTips,rGR,rKR,rKS})=>{
           {allUsers.map(u=>{
             const t=allTips?.[u]||EMPTY_TIPS,q=qualifiers(t.groupTips||{}),kw=koWinners(t.koScores||{},q);
             const tipT1=rt(m.t1,q,kw),tipT2=rt(m.t2,q,kw),s=t.koScores?.[m.id]||{};
-            const pairing=pairOk(tipT1,tipT2,realT1,realT2),done=scoreDone(s),pts=realSc&&done?koMatchPts(s,realSc):null;
+            const pairing=pairOk(tipT1,tipT2,realT1,realT2),done=scoreDone(s),scorePts=realSc&&done?koMatchPts(s,realSc):null;
+            // Team-Bonus: TEAM_PTS[round] pro richtigem Team in dieser Runde
+            const tp=TEAM_PTS[m.r]||0;
+            const t1ok=hasRealPair&&(tipT1===realT1||tipT1===realT2);
+            const t2ok=hasRealPair&&(tipT2===realT1||tipT2===realT2);
+            const teamPts=(t1ok?tp:0)+(t2ok?tp:0);
+            const totalPts=(scorePts||0)+teamPts;
+            const hasAny=scorePts!==null||teamPts>0;
             return <div key={u} style={{padding:'8px 9px',marginBottom:5,borderRadius:9,
-              border:'1px solid '+(pairing?'rgba(46,204,113,.45)':T.border),background:pairing?T.greenDim:T.surface}}>
+              border:'1px solid '+(pairing?'rgba(46,204,113,.45)':scorePts>0?'rgba(243,156,18,.3)':T.border),
+              background:pairing?T.greenDim:scorePts>0?T.amberDim:T.surface}}>
               <div style={{display:'flex',alignItems:'center',gap:8}}>
                 <span style={{flex:1,minWidth:0,fontSize:12,fontWeight:800,color:pairing?T.green:T.text,overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}}>{u}</span>
-                <span style={{fontSize:13,fontWeight:900,color:done?pairing?T.green:T.goldText:T.textMuted}}>{done?s.h+':'+s.a:'–:–'}</span>
-                {pts!==null&&<span style={{fontSize:10,fontWeight:800,color:pts===3?T.green:pts===1?T.amber:T.red,width:32,textAlign:'right'}}>{pts}p</span>}
+                <span style={{fontSize:13,fontWeight:900,color:done?scorePts===6?T.green:scorePts===2?T.amber:T.goldText:T.textMuted}}>{done?s.h+':'+s.a:'–:–'}</span>
+                {hasAny&&<div style={{display:'flex',gap:3,alignItems:'center'}}>
+                  {teamPts>0&&<span style={{fontSize:10,fontWeight:800,padding:'1px 5px',borderRadius:4,background:'rgba(46,204,113,.15)',color:T.green}}>🏅+{teamPts}</span>}
+                  {scorePts>0&&<span style={{fontSize:10,fontWeight:800,padding:'1px 5px',borderRadius:4,background:scorePts===6?'rgba(46,204,113,.15)':'rgba(243,156,18,.15)',color:scorePts===6?T.green:T.amber}}>📊+{scorePts}</span>}
+                  {hasAny&&<span style={{fontSize:10,fontWeight:900,color:T.goldText,minWidth:28,textAlign:'right'}}>{totalPts}p</span>}
+                </div>}
               </div>
               <div style={{marginTop:5,fontSize:11,color:pairing?T.green:T.textDim,display:'flex',alignItems:'center',gap:5,flexWrap:'wrap'}}>
-                {tipT1!=='?'&&<Flag c={tipT1} s={13}/>}<span>{tipT1}</span><span>vs</span><span>{tipT2}</span>{tipT2!=='?'&&<Flag c={tipT2} s={13}/>}
+                {tipT1!=='?'&&<Flag c={tipT1} s={13}/>}<span style={{color:t1ok?T.green:T.textDim}}>{tipT1}</span><span>vs</span><span style={{color:t2ok?T.green:T.textDim}}>{tipT2}</span>{tipT2!=='?'&&<Flag c={tipT2} s={13}/>}
               </div>
             </div>;
           })}
@@ -1009,8 +1021,67 @@ const OthersTab=({allUsers,allTips,viewUser,viewTips,onSelect,rGR,rKR,rKS})=>{
 };
 
 // ── Admin Tab ──
-const AdminTab=({apiKey,onSaveKey,onSync,syncing,syncMsg,rGR,rKR})=>{
+const ManualResultEntry=({rGR,rKR,onSave})=>{
+  const [open,setOpen]=useState(false);
+  const [mode,setMode]=useState('group'); // 'group' | 'ko'
+  const [selG,setSelG]=useState('A');
+  const [selM,setSelM]=useState(0);
+  const [selKO,setSelKO]=useState('M73');
+  const [hScore,setHScore]=useState('');
+  const [aScore,setAScore]=useState('');
+  const [msg,setMsg]=useState('');
+  const matches=gms(selG);
+  const m=matches[selM]||matches[0];
+  const koM=KO.find(x=>x.id===selKO)||KO[0];
+  function doSave(){
+    const h=parseInt(hScore),a=parseInt(aScore);
+    if(isNaN(h)||isNaN(a)||h<0||a<0){setMsg('❌ Ungültige Eingabe');return;}
+    onSave(mode,mode==='group'?{g:selG,mid:selM,h,a}:{id:selKO,h,a});
+    setMsg('✅ Gespeichert: '+h+':'+a);
+    setHScore('');setAScore('');
+  }
+  const inp={width:'60px',padding:'8px',borderRadius:8,border:'1px solid #1e3a5a',background:'#0e1f35',color:'white',fontSize:18,fontWeight:900,textAlign:'center',outline:'none',fontFamily:'inherit'};
+  return <div style={{background:T.card,border:'1px solid '+T.border,borderRadius:12,marginBottom:12}}>
+    <button onClick={()=>setOpen(o=>!o)} style={{width:'100%',padding:'12px 16px',background:'none',border:'none',color:T.text,fontWeight:700,fontSize:13,cursor:'pointer',textAlign:'left',display:'flex',justifyContent:'space-between',alignItems:'center'}}>
+      ✏️ Ergebnisse manuell eintragen <span style={{color:T.textMuted}}>{open?'▲':'▼'}</span>
+    </button>
+    {open&&<div style={{padding:'0 16px 16px'}}>
+      <div style={{fontSize:11,color:T.textMuted,marginBottom:12,lineHeight:1.6}}>Fallback falls die API nicht funktioniert. Ergebnisse werden lokal gespeichert und für alle Mitspieler sichtbar.</div>
+      <div style={{display:'flex',gap:6,marginBottom:12}}>
+        {[['group','⚽ Gruppe'],['ko','⚡ K.O.']].map(([v,l])=><button key={v} onClick={()=>setMode(v)} style={{flex:1,padding:'8px',borderRadius:8,border:'1px solid '+(mode===v?T.goldText:T.border),background:mode===v?T.goldDim:T.surface,color:mode===v?T.goldText:T.textDim,fontWeight:600,fontSize:12,cursor:'pointer'}}>{l}</button>)}
+      </div>
+      {mode==='group'&&<>
+        <div style={{display:'flex',gap:6,marginBottom:10,flexWrap:'wrap'}}>
+          {Object.keys(GRP).map(g=><button key={g} onClick={()=>{setSelG(g);setSelM(0);}} style={{width:34,height:34,borderRadius:7,border:'1px solid '+(selG===g?T.goldText:T.border),background:selG===g?T.goldText:T.surface,color:selG===g?'#060c18':T.textDim,fontWeight:800,fontSize:13,cursor:'pointer'}}>{g}</button>)}
+        </div>
+        <select value={selM} onChange={e=>setSelM(+e.target.value)} style={{width:'100%',padding:'9px',borderRadius:8,border:'1px solid '+T.border,background:T.surface,color:T.text,fontSize:12,marginBottom:12,fontFamily:'inherit'}}>
+          {matches.map((mm,i)=><option key={i} value={i}>{mm.home} vs {mm.away}</option>)}
+        </select>
+        <div style={{fontSize:11,color:T.textDim,marginBottom:6,textAlign:'center'}}>
+          <b style={{color:T.text}}>{m.home}</b> <span style={{color:T.textMuted}}>vs</span> <b style={{color:T.text}}>{m.away}</b>
+          {(rGR?.[selG]?.[selM])&&<span style={{color:T.amber,marginLeft:8}}>Gespeichert: {rGR[selG][selM].h}:{rGR[selG][selM].a}</span>}
+        </div>
+      </>}
+      {mode==='ko'&&<>
+        <select value={selKO} onChange={e=>setSelKO(e.target.value)} style={{width:'100%',padding:'9px',borderRadius:8,border:'1px solid '+T.border,background:T.surface,color:T.text,fontSize:12,marginBottom:12,fontFamily:'inherit'}}>
+          {KO.map(km=><option key={km.id} value={km.id}>{km.d} · {km.lbl}</option>)}
+        </select>
+        {(rKR?.[selKO])&&<div style={{fontSize:11,color:T.amber,marginBottom:6,textAlign:'center'}}>Gespeichert: Sieger {rKR[selKO]}</div>}
+      </>}
+      <div style={{display:'flex',alignItems:'center',justifyContent:'center',gap:12,marginBottom:12}}>
+        <input type="text" inputMode="numeric" placeholder="0" value={hScore} onChange={e=>setHScore(e.target.value)} style={inp}/>
+        <span style={{color:T.textMuted,fontSize:20,fontWeight:900}}>:</span>
+        <input type="text" inputMode="numeric" placeholder="0" value={aScore} onChange={e=>setAScore(e.target.value)} style={inp}/>
+      </div>
+      <button onClick={doSave} style={{width:'100%',padding:'10px',borderRadius:8,border:'none',background:T.goldText,color:'#060c18',fontWeight:800,fontSize:13,cursor:'pointer'}}>💾 Ergebnis speichern</button>
+      {msg&&<div style={{marginTop:8,fontSize:12,color:msg.startsWith('✅')?T.green:T.red,fontWeight:600,textAlign:'center'}}>{msg}</div>}
+    </div>}
+  </div>;
+};
+
+const AdminTab=({apiKey,onSaveKey,onSync,syncing,syncMsg,rGR,rKR,onManualSave})=>{
   const [key,setKey]=useState(apiKey);
+  const [debugMsg,setDebugMsg]=useState('');
   const gC=Object.values(rGR||{}).reduce((n,g)=>n+Object.keys(g).length,0);
   const kC=Object.keys(rKR||{}).filter(k=>!k.startsWith('L:')).length;
   const sec={background:T.card,border:'1px solid '+T.border,borderRadius:12,padding:16,marginBottom:12};
@@ -1036,8 +1107,8 @@ const AdminTab=({apiKey,onSaveKey,onSync,syncing,syncMsg,rGR,rKR})=>{
       <button onClick={onSync} disabled={syncing||!apiKey} style={btn('#1a4a8a','#7aaeff',syncing||!apiKey)}>
         {syncing?'⏳ Synchronisiere…':'🔄 Jetzt synchronisieren'}
       </button>
-      {syncMsg&&<div style={{marginTop:10,padding:'10px 12px',background:syncMsg.startsWith('✅')?T.greenDim:T.redDim,borderRadius:8,fontSize:12,color:syncMsg.startsWith('✅')?T.green:T.red,lineHeight:1.5}}>{syncMsg}</div>}
     </div>
+    <ManualResultEntry rGR={rGR} rKR={rKR} onSave={onManualSave}/>
     <div style={{padding:'12px 14px',background:T.surface,border:'1px solid '+T.border,borderRadius:10,fontSize:11,color:T.textDim,lineHeight:2}}>
       <div style={{fontWeight:700,color:T.text,marginBottom:4}}>ℹ️ Supabase ist aktiv</div>
       1. Jeder meldet sich mit Name + PIN an<br/>
@@ -1184,6 +1255,30 @@ function App(){
     const t={...tips,koScores:{...tips.koScores,[id]:{...tips.koScores?.[id],[side]:val}}};
     setTips(t);save(t);
   };
+  const doManualSave=(mode,data)=>{
+    if(mode==='group'){
+      const newGR={...rGR,[data.g]:{...rGR?.[data.g],[data.mid]:{h:data.h,a:data.a}}};
+      setRGR(newGR);
+      sb('app_state',{key:'real_group',value:JSON.stringify(newGR)},{onConflict:'key'});
+    } else {
+      // KO: derive winner from score, store in rKR and rKS
+      const newKS={...rKS,[data.id]:{h:data.h,a:data.a}};
+      setRKS(newKS);
+      // derive winner from current real qualifiers
+      const rQ=qualifiers(rGR||{});
+      const m=KO.find(x=>x.id===data.id);
+      if(m&&data.h!==data.a){
+        const t1=rt(m.t1,rQ,rKR||{}),t2=rt(m.t2,rQ,rKR||{});
+        const winner=data.h>data.a?t1:t2;
+        if(winner&&winner!=='?'){
+          const newKR={...rKR,[data.id]:winner};
+          setRKR(newKR);
+          sb('app_state',{key:'real_ko',value:JSON.stringify(newKR)},{onConflict:'key'});
+        }
+      }
+      sb('app_state',{key:'real_ko_scores',value:JSON.stringify(newKS)},{onConflict:'key'});
+    }
+  };
   const doSync=async()=>{
     if(!apiKey){setSyncMsg('❌ API-Key eingeben');return}
     setSyncing(true);setSyncMsg('');
@@ -1246,7 +1341,7 @@ function App(){
       {tab==='current'&&<CurrentGamesTab allUsers={allUsers} allTips={allTips} rGR={rGR} rKR={rKR} rKS={rKS}/>}
       {tab==='leaderboard'&&<LeaderboardTab allUsers={allUsers} allTips={allTips} me={user} rGR={rGR} rKR={rKR} rKS={rKS} onView={u=>{loadView(u);setTab('overview')}}/>}
       {tab==='overview'&&<OthersTab allUsers={allUsers} allTips={allTips} viewUser={viewUser} viewTips={viewTips} onSelect={loadView} rGR={rGR} rKR={rKR} rKS={rKS}/>}
-      {tab==='admin'&&<AdminTab apiKey={apiKey} onSaveKey={saveKey} onSync={doSync} syncing={syncing} syncMsg={syncMsg} rGR={rGR} rKR={rKR}/>}
+      {tab==='admin'&&<AdminTab apiKey={apiKey} onSaveKey={saveKey} onSync={doSync} syncing={syncing} syncMsg={syncMsg} rGR={rGR} rKR={rKR} onManualSave={doManualSave}/>}
     </div>
   </div>;
 }
