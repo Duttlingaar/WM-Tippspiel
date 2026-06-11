@@ -762,10 +762,10 @@ const CurrentGamesTab=({allUsers,allTips,rGR,rKR,rKS})=>{
               pts=scorePts!==null?scorePts:null;
               exact=scorePts===6;partial=scorePts===2;
               row=<>
-                <div style={{display:'flex',alignItems:'center',gap:8}}>
+                <div style={{display:'flex',alignItems:'center',gap:6}}>
                   <span style={{flex:1,minWidth:0,fontSize:12,fontWeight:800,color:pairing?T.green:T.text,overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}}>{u}</span>
-                  <span style={{fontSize:13,fontWeight:900,color:done?pairing?T.green:T.goldText:T.textMuted}}>{done?s.h+':'+s.a:'–:–'}</span>
-                  {pts!==null&&<span style={{fontSize:10,fontWeight:800,color:scoreColor(pts),width:32,textAlign:'right'}}>{pts}p</span>}
+                  {pts!==null&&<span style={{fontSize:10,fontWeight:800,padding:'1px 5px',borderRadius:4,background:exact?'rgba(46,204,113,.15)':partial?'rgba(243,156,18,.15)':'rgba(231,76,60,.12)',color:scoreColor(pts),whiteSpace:'nowrap'}}>📊+{pts}</span>}
+                  <span style={{fontSize:13,fontWeight:900,color:done?pairing?T.green:T.goldText:T.textMuted,minWidth:36,textAlign:'right'}}>{done?s.h+':'+s.a:'–:–'}</span>
                 </div>
                 <div style={{marginTop:5,fontSize:11,color:pairing?T.green:T.textDim,display:'flex',alignItems:'center',gap:5,flexWrap:'wrap'}}>
                   {th!=='?'&&<Flag c={th} s={13}/>}<span>{th}</span><span>vs</span><span>{ta}</span>{ta!=='?'&&<Flag c={ta} s={13}/>}
@@ -774,10 +774,10 @@ const CurrentGamesTab=({allUsers,allTips,rGR,rKR,rKS})=>{
             }else{
               const s=t.groupTips?.[g.group]?.[g.m.id]||{},done=tipDone(s);
               pts=g.real&&done?mpts(s,g.real):null;exact=pts===3;partial=pts===1;
-              row=<div style={{display:'flex',alignItems:'center',gap:10}}>
+              row=<div style={{display:'flex',alignItems:'center',gap:6}}>
                 <span style={{flex:1,minWidth:0,fontSize:12,fontWeight:800,color:exact?T.green:T.text,overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}}>{u}</span>
-                <span style={{fontSize:13,fontWeight:900,color:done?exact?T.green:T.goldText:T.textMuted}}>{done?s.h+':'+s.a:'–:–'}</span>
-                {pts!==null&&<span style={{fontSize:10,fontWeight:800,color:scoreColor(pts),width:32,textAlign:'right'}}>{pts}p</span>}
+                {pts!==null&&<span style={{fontSize:10,fontWeight:800,padding:'1px 5px',borderRadius:4,background:exact?'rgba(46,204,113,.15)':partial?'rgba(243,156,18,.15)':'rgba(231,76,60,.12)',color:scoreColor(pts),whiteSpace:'nowrap'}}>+{pts}</span>}
+                <span style={{fontSize:13,fontWeight:900,color:done?exact?T.green:T.goldText:T.textMuted,minWidth:36,textAlign:'right'}}>{done?s.h+':'+s.a:'–:–'}</span>
               </div>;
             }
             return <div key={u} style={{padding:'8px 9px',marginBottom:5,borderRadius:9,border:'1px solid '+(exact?'rgba(46,204,113,.45)':partial?'rgba(243,156,18,.28)':pts===0?'rgba(231,76,60,.25)':T.border),background:exact?T.greenDim:partial?T.amberDim:pts===0?T.redDim:T.surface}}>
@@ -833,8 +833,8 @@ const AllMatchTips=({allUsers,allTips,rGR})=>{
                 border:'1px solid '+(exact?'rgba(46,204,113,.45)':partial?'rgba(243,156,18,.28)':wrong?'rgba(231,76,60,.25)':T.border),
                 background:exact?T.greenDim:partial?T.amberDim:wrong?T.redDim:T.surface}}>
                 <span style={{flex:1,minWidth:0,fontSize:12,fontWeight:700,color:exact?T.green:T.text,overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}}>{u}</span>
+                {pts!==null&&<span style={{fontSize:10,fontWeight:800,padding:'1px 5px',borderRadius:4,background:exact?'rgba(46,204,113,.15)':partial?'rgba(243,156,18,.15)':'rgba(231,76,60,.12)',color:exact?T.green:partial?T.amber:T.red,whiteSpace:'nowrap'}}>+{pts}</span>}
                 <span style={{fontSize:14,fontWeight:900,color:isDone?exact?T.green:T.goldText:T.textMuted,minWidth:44,textAlign:'right'}}>{isDone?tip.h+':'+tip.a:'–:–'}</span>
-                {pts!==null&&<span style={{fontSize:10,fontWeight:800,color:exact?T.green:partial?T.amber:T.red,width:32,textAlign:'right'}}>{pts}p</span>}
               </div>;
             })}
           </div>
@@ -889,13 +889,11 @@ const AllKOTips=({allUsers,allTips,rGR,rKR,rKS})=>{
             return <div key={u} style={{padding:'8px 9px',marginBottom:5,borderRadius:9,
               border:'1px solid '+(pairing?'rgba(46,204,113,.45)':scorePts>0?'rgba(243,156,18,.3)':T.border),
               background:pairing?T.greenDim:scorePts>0?T.amberDim:T.surface}}>
-              <div style={{display:'flex',alignItems:'center',gap:8}}>
+              <div style={{display:'flex',alignItems:'center',gap:6}}>
                 <span style={{flex:1,minWidth:0,fontSize:12,fontWeight:800,color:pairing?T.green:T.text,overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}}>{u}</span>
-                {hasAny&&<div style={{display:'flex',gap:3,alignItems:'center'}}>
-                  {teamPts>0&&<span style={{fontSize:10,fontWeight:800,padding:'1px 5px',borderRadius:4,background:'rgba(46,204,113,.15)',color:T.green}}>🏅+{teamPts}</span>}
-                  {scorePts>0&&<span style={{fontSize:10,fontWeight:800,padding:'1px 5px',borderRadius:4,background:scorePts===6?'rgba(46,204,113,.15)':'rgba(243,156,18,.15)',color:scorePts===6?T.green:T.amber}}>📊+{scorePts}</span>}
-		<span style={{fontSize:13,fontWeight:900,color:done?scorePts===6?T.green:scorePts===2?T.amber:T.goldText:T.textMuted}}>{done?s.h+':'+s.a:'–:–'}</span>
-                </div>}
+                {teamPts>0&&<span style={{fontSize:10,fontWeight:800,padding:'1px 5px',borderRadius:4,background:'rgba(46,204,113,.15)',color:T.green,whiteSpace:'nowrap'}}>🏅+{teamPts}</span>}
+                {scorePts>0&&<span style={{fontSize:10,fontWeight:800,padding:'1px 5px',borderRadius:4,background:scorePts===6?'rgba(46,204,113,.15)':'rgba(243,156,18,.15)',color:scorePts===6?T.green:T.amber,whiteSpace:'nowrap'}}>📊+{scorePts}</span>}
+                <span style={{fontSize:13,fontWeight:900,color:done?scorePts===6?T.green:scorePts===2?T.amber:T.goldText:T.textMuted,minWidth:36,textAlign:'right'}}>{done?s.h+':'+s.a:'–:–'}</span>
               </div>
               <div style={{marginTop:5,fontSize:11,color:pairing?T.green:T.textDim,display:'flex',alignItems:'center',gap:5,flexWrap:'wrap'}}>
                 {tipT1!=='?'&&<Flag c={tipT1} s={13}/>}<span style={{color:t1ok?T.green:T.textDim}}>{tipT1}</span><span>vs</span><span style={{color:t2ok?T.green:T.textDim}}>{tipT2}</span>{tipT2!=='?'&&<Flag c={tipT2} s={13}/>}
