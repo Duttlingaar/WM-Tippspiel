@@ -891,11 +891,10 @@ const AllKOTips=({allUsers,allTips,rGR,rKR,rKS})=>{
               background:pairing?T.greenDim:scorePts>0?T.amberDim:T.surface}}>
               <div style={{display:'flex',alignItems:'center',gap:8}}>
                 <span style={{flex:1,minWidth:0,fontSize:12,fontWeight:800,color:pairing?T.green:T.text,overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}}>{u}</span>
-                <span style={{fontSize:13,fontWeight:900,color:done?scorePts===6?T.green:scorePts===2?T.amber:T.goldText:T.textMuted}}>{done?s.h+':'+s.a:'–:–'}</span>
                 {hasAny&&<div style={{display:'flex',gap:3,alignItems:'center'}}>
                   {teamPts>0&&<span style={{fontSize:10,fontWeight:800,padding:'1px 5px',borderRadius:4,background:'rgba(46,204,113,.15)',color:T.green}}>🏅+{teamPts}</span>}
                   {scorePts>0&&<span style={{fontSize:10,fontWeight:800,padding:'1px 5px',borderRadius:4,background:scorePts===6?'rgba(46,204,113,.15)':'rgba(243,156,18,.15)',color:scorePts===6?T.green:T.amber}}>📊+{scorePts}</span>}
-                  {hasAny&&<span style={{fontSize:10,fontWeight:900,color:T.goldText,minWidth:28,textAlign:'right'}}>{totalPts}p</span>}
+		<span style={{fontSize:13,fontWeight:900,color:done?scorePts===6?T.green:scorePts===2?T.amber:T.goldText:T.textMuted}}>{done?s.h+':'+s.a:'–:–'}</span>
                 </div>}
               </div>
               <div style={{marginTop:5,fontSize:11,color:pairing?T.green:T.textDim,display:'flex',alignItems:'center',gap:5,flexWrap:'wrap'}}>
