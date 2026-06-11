@@ -417,7 +417,7 @@ const LockBar=()=>
 
 const DateBadge=({d,t})=>d&&t?
   <span style={{fontSize:10,color:T.textMuted,fontWeight:500}}>{d} · {t}</span>:null;
-const todayDM=()=>new Date().toLocaleDateString('de-DE',{timeZone:'Europe/Berlin',day:'2-digit',month:'2-digit'});
+const todayDM=()=>new Date().toLocaleDateString('de-DE',{timeZone:'Europe/Berlin',day:'2-digit',month:'2-digit'}).replace(/\.$/,'');
 const tipDone=s=>s&&s.h!=null&&s.h!==''&&s.a!=null&&s.a!=='';
 const pairOk=(a,b,c,d)=>a&&b&&c&&d&&a!=='?'&&b!=='?'&&c!=='?'&&d!=='?'&&((a===c&&b===d)||(a===d&&b===c));
 
