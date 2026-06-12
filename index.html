@@ -849,6 +849,16 @@ const AllKOTips=({allUsers,allTips,rGR,rKR,rKS})=>{
   const rQ=qualifiers(rGR||{}),realKW=rKR||{};
   const pairOk=(a,b,c,d)=>a&&b&&c&&d&&a!=='?'&&b!=='?'&&c!=='?'&&d!=='?'&&((a===c&&b===d)||(a===d&&b===c));
   const scoreDone=s=>s&&s.h!=null&&s.h!==''&&s.a!=null&&s.a!=='';
+  // Teams pro Runde — grün wenn Team die Runde ÜBERHAUPT erreicht hat
+  const realRoundTeams=useMemo(()=>{
+    const sets={R32:new Set(),R16:new Set(),QF:new Set(),SF:new Set(),FINAL:new Set()};
+    KO.filter(m=>m.r!=='THIRD').forEach(m=>{
+      const t1=rt(m.t1,rQ,realKW),t2=rt(m.t2,rQ,realKW);
+      if(t1&&t1!=='?')sets[m.r]?.add(t1);
+      if(t2&&t2!=='?')sets[m.r]?.add(t2);
+    });
+    return sets;
+  },[rGR,rKR]);
   return <div style={{marginTop:26}}>
     <div style={{marginBottom:10}}>
       <div style={{color:T.goldText,fontWeight:900,fontSize:15,letterSpacing:1}}>K.O.-Tipps</div>
@@ -881,8 +891,9 @@ const AllKOTips=({allUsers,allTips,rGR,rKR,rKS})=>{
             const pairing=pairOk(tipT1,tipT2,realT1,realT2),done=scoreDone(s),scorePts=realSc&&done?koMatchPts(s,realSc):null;
             // Team-Bonus: TEAM_PTS[round] pro richtigem Team in dieser Runde
             const tp=TEAM_PTS[m.r]||0;
-            const t1ok=hasRealPair&&(tipT1===realT1||tipT1===realT2);
-            const t2ok=hasRealPair&&(tipT2===realT1||tipT2===realT2);
+            // t1ok/t2ok: Team hat die Runde erreicht (egal welches Matchup)
+            const t1ok=tipT1!=='?'&&realRoundTeams[m.r]?.has(tipT1);
+            const t2ok=tipT2!=='?'&&realRoundTeams[m.r]?.has(tipT2);
             const teamPts=(t1ok?tp:0)+(t2ok?tp:0);
             const totalPts=(scorePts||0)+teamPts;
             const hasAny=scorePts!==null||teamPts>0;
@@ -1030,11 +1041,13 @@ const ManualResultEntry=({rGR,rKR,onSave})=>{
   const matches=gms(selG);
   const m=matches[selM]||matches[0];
   const koM=KO.find(x=>x.id===selKO)||KO[0];
-  function doSave(){
+  async function doSave(){
     const h=parseInt(hScore),a=parseInt(aScore);
     if(isNaN(h)||isNaN(a)||h<0||a<0){setMsg('❌ Ungültige Eingabe');return;}
-    onSave(mode,mode==='group'?{g:selG,mid:selM,h,a}:{id:selKO,h,a});
-    setMsg('✅ Gespeichert: '+h+':'+a);
+    setMsg('⏳ Speichere…');
+    const result=await onSave(mode,mode==='group'?{g:selG,mid:selM,h,a}:{id:selKO,h,a});
+    if(result?.ok===false){setMsg('❌ Supabase-Fehler: '+result.error);return;}
+    setMsg('✅ Gespeichert: '+h+':'+a+' — für alle sichtbar');
     setHScore('');setAScore('');
   }
   const inp={width:'60px',padding:'8px',borderRadius:8,border:'1px solid #1e3a5a',background:'#0e1f35',color:'white',fontSize:18,fontWeight:900,textAlign:'center',outline:'none',fontFamily:'inherit'};
@@ -1252,28 +1265,35 @@ function App(){
     const t={...tips,koScores:{...tips.koScores,[id]:{...tips.koScores?.[id],[side]:val}}};
     setTips(t);save(t);
   };
-  const doManualSave=(mode,data)=>{
-    if(mode==='group'){
-      const newGR={...rGR,[data.g]:{...rGR?.[data.g],[data.mid]:{h:data.h,a:data.a}}};
-      setRGR(newGR);
-      sb('app_state',{key:'real_group',value:JSON.stringify(newGR)},{onConflict:'key'});
-    } else {
-      // KO: derive winner from score, store in rKR and rKS
-      const newKS={...rKS,[data.id]:{h:data.h,a:data.a}};
-      setRKS(newKS);
-      // derive winner from current real qualifiers
-      const rQ=qualifiers(rGR||{});
-      const m=KO.find(x=>x.id===data.id);
-      if(m&&data.h!==data.a){
-        const t1=rt(m.t1,rQ,rKR||{}),t2=rt(m.t2,rQ,rKR||{});
-        const winner=data.h>data.a?t1:t2;
-        if(winner&&winner!=='?'){
-          const newKR={...rKR,[data.id]:winner};
-          setRKR(newKR);
-          sb('app_state',{key:'real_ko',value:JSON.stringify(newKR)},{onConflict:'key'});
+  const doManualSave=async(mode,data)=>{
+    try{
+      let newGR=rGR,newKR=rKR,newKS=rKS;
+      if(mode==='group'){
+        newGR={...rGR,[data.g]:{...rGR?.[data.g],[data.mid]:{h:data.h,a:data.a}}};
+        setRGR(newGR);
+      } else {
+        newKS={...rKS,[data.id]:{h:data.h,a:data.a}};
+        setRKS(newKS);
+        if(data.h!==data.a){
+          const rQ=qualifiers(newGR||{});
+          const m=KO.find(x=>x.id===data.id);
+          if(m){
+            const t1=rt(m.t1,rQ,newKR||{}),t2=rt(m.t2,rQ,newKR||{});
+            const winner=data.h>data.a?t1:t2;
+            if(winner&&winner!=='?'){newKR={...rKR,[data.id]:winner};setRKR(newKR);}
+          }
         }
       }
-      sb('app_state',{key:'real_ko_scores',value:JSON.stringify(newKS)},{onConflict:'key'});
+      // Gleicher Key wie doSync → wird von allen Spielern beim Laden gelesen
+      await sb('app_state?on_conflict=key',{
+        method:'POST',
+        headers:{Prefer:'resolution=merge-duplicates,return=representation'},
+        body:JSON.stringify({key:'results',value:{rGR:newGR,rKR:newKR,rKS:newKS},updated_at:new Date().toISOString()})
+      });
+      return{ok:true};
+    }catch(e){
+      console.error('doManualSave error:',e);
+      return{ok:false,error:e.message};
     }
   };
   const doSync=async()=>{
